@@ -2,8 +2,8 @@ use serde::Serialize;
 
 /// Safe, user-facing error codes. Never carries journal text, stack traces,
 /// or file paths — those are logged locally (see `tracing` setup in
-/// `main.rs`) via safe codes only, per the brief's "no raw private text in
-/// logs" requirement.
+/// `main.rs`) via safe codes only, to keep raw private text out of the
+/// logs.
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum SafeErrorCode {

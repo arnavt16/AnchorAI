@@ -1,6 +1,5 @@
 //! Persistence + invalidation tests using temporary on-disk SQLite
-//! databases (brief section 14, "Use Rust tests with temporary SQLite
-//! databases for persistence and race cases").
+//! databases for persistence and race cases.
 
 use anchor_lib::db::{open_vault, repo};
 

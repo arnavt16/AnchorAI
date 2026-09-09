@@ -1,10 +1,10 @@
 //! Exact cosine-similarity retrieval over `retrieval_chunks`, restricted to
 //! the active vault, eligible parents, current source versions, and the
-//! active embedding space (brief section 8, "Candidate retrieval").
+//! active embedding space.
 //!
 //! Exact (not approximate/indexed) search: fine for a personal-journal
-//! scale prototype per the brief's own guidance — add an ANN index only if
-//! the stress benchmark in `evals/` shows it's actually needed.
+//! scale prototype — add an ANN index only if the stress benchmark in
+//! `evals/` shows it's actually needed.
 
 use crate::models::{RetrievedSource, WorryOutcome};
 use rusqlite::{params, Connection, Row};
@@ -57,7 +57,7 @@ fn candidate_from_row(row: &Row) -> rusqlite::Result<Candidate> {
 /// weighting on top of semantic similarity, deduplicates chunks from the
 /// same entry+source_kind, and — critically — expands any matched worry
 /// chunk with its full linked outcome history (never just the original
-/// fear; see brief section 8, "This is essential").
+/// fear; this is essential).
 pub fn retrieve(
     conn: &Connection,
     query_embedding: &[f32],
@@ -134,7 +134,7 @@ fn recency_weight(created_at: &str, now: time::OffsetDateTime) -> f32 {
     };
     let days = (now - created).whole_days().max(0) as f32;
     // Gentle decay: ~1.0 today, ~0.5 at 90 days, floor near 0.1. Modest by
-    // design — the brief warns against assuming "newest is most relevant".
+    // design — never assume "newest is most relevant".
     (1.0 - (days / 180.0)).clamp(0.1, 1.0)
 }
 

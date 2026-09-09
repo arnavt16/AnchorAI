@@ -1,4 +1,4 @@
-//! Durable indexing worker (brief section 7).
+//! Durable indexing worker.
 //!
 //! Single-threaded by design ("process one generation at a time"): jobs are
 //! claimed and processed sequentially from a tokio interval loop, not a
@@ -29,7 +29,7 @@ const MAX_ATTEMPTS: i64 = 5;
 pub fn spawn_worker_loop(app: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         // Resume any jobs left mid-flight from a previous run before entering
-        // the steady-state poll loop (brief section 7, rule 3).
+        // the steady-state poll loop.
         reclaim_interrupted_jobs(&app);
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(3));
         loop {
@@ -158,9 +158,9 @@ async fn process_one_pending(app: &tauri::AppHandle) -> anyhow::Result<()> {
         }
     }
 
-    // Recheck before commit (brief section 7, rule 6): source still exists,
-    // aggregate/embedding-space snapshot still matches what we started
-    // from, consent still granted, vault generation unchanged.
+    // Recheck before commit: source still exists, aggregate/embedding-space
+    // snapshot still matches what we started from, consent still granted,
+    // vault generation unchanged.
     let conn = vault.pool.get()?;
     let current_entry = repo::get_entry(&conn, &entry_id)?;
     let current_settings = repo::get_settings(&conn)?;

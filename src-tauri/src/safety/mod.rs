@@ -1,4 +1,4 @@
-//! Urgent-distress routing (brief section 9, "Urgent-distress path").
+//! Urgent-distress routing.
 //!
 //! This is a conservative, local, keyword-anchored pre-filter — explicitly
 //! NOT presented as reliable clinical triage. It exists so that a bundled,
@@ -9,8 +9,8 @@
 //! than false negatives. A local model classifier or a real crisis-triage
 //! system is future work — see SECURITY.md limitations and
 //! `evals/fixtures/safety_fixtures.json` for the labeled test set this was
-//! tuned against, none of which is a substitute for the human review this
-//! brief requires before any public release.
+//! tuned against, none of which is a substitute for the human review
+//! required before any public release.
 
 use serde::{Deserialize, Serialize};
 

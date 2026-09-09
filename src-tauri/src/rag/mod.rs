@@ -14,8 +14,8 @@ pub struct ReflectRequest<'a> {
     pub exclude_entry_id: Option<&'a str>,
 }
 
-/// Top-level reflection pipeline (brief section 8 end-to-end + section 9
-/// urgent-distress routing).
+/// Top-level reflection pipeline: end-to-end retrieval/generation plus
+/// urgent-distress routing.
 ///
 /// Takes a `&Pool` rather than a `&Connection` deliberately: rusqlite's
 /// `Connection` is `!Sync`, so a Tauri async command must never hold one
@@ -63,9 +63,8 @@ pub async fn reflect(pool: &Pool, client: &OllamaClient, req: ReflectRequest<'_>
 
     let mut reflection = generation::generate_reflection(client, &chat_model, req.message, req.intention, &sources).await?;
 
-    // Recheck cited sources are still current before returning (brief
-    // section 8, "Generation" — discard/regenerate if source data changed
-    // mid-flight).
+    // Recheck cited sources are still current before returning — discard
+    // and regenerate if source data changed mid-flight.
     let cited_ids: std::collections::HashSet<String> =
         reflection.sections.iter().flat_map(|s| s.source_ids.iter().cloned()).collect();
     if !cited_ids.is_empty() {

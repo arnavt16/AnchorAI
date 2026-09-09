@@ -1,5 +1,4 @@
-//! Context assembly, structured generation, and output validation
-//! (brief section 8, "Context assembly" / "Generation").
+//! Context assembly, structured generation, and output validation.
 
 use crate::models::{ReflectionSection, RetrievedSource, ValidatedReflection};
 use crate::ollama::{ChatMessage, OllamaClient};

@@ -1,6 +1,5 @@
-//! Full local backup/restore using SQLite's online backup API (brief
-//! section 11) — never a raw copy of the live .db file, which would miss
-//! in-flight WAL state.
+//! Full local backup/restore using SQLite's online backup API — never a
+//! raw copy of the live .db file, which would miss in-flight WAL state.
 
 use crate::error::{AnchorError, AnchorResult, SafeErrorCode};
 use rusqlite::{backup::Backup, Connection};

@@ -391,7 +391,7 @@ pub fn set_step_feedback(conn: &Connection, id: &str, feedback: Option<&str>, no
 
 /// Bump the owning entry's aggregate_version and flip it back to `pending`
 /// indexing if memory is on, so a worry/outcome/step edit invalidates and
-/// re-queues the entry's retrieval snapshot (brief section 7, rule 7).
+/// re-queues the entry's retrieval snapshot.
 pub fn bump_aggregate_version_for_entry(conn: &Connection, entry_id: &str) -> AnchorResult<()> {
     conn.execute(
         "UPDATE journal_entries

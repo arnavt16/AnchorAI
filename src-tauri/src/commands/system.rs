@@ -80,12 +80,11 @@ pub struct ReadinessResult {
     pub chat_error: Option<String>,
 }
 
-/// Runs the synthetic readiness tests from brief section 5: one embedding
-/// (checked for dimension + finite values) and one short structured chat
-/// response — synthetic text only, never journal content. On success,
-/// persists the chosen models + embedding dimension into app_settings and
-/// bumps the embedding space version if the embedding model changed (brief
-/// section 7, rule 10).
+/// Runs synthetic readiness tests: one embedding (checked for dimension +
+/// finite values) and one short structured chat response — synthetic text
+/// only, never journal content. On success, persists the chosen models +
+/// embedding dimension into app_settings and bumps the embedding space
+/// version if the embedding model changed.
 #[tauri::command]
 pub async fn run_readiness_check_and_select(
     vault: State<'_, VaultManager>,

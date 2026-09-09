@@ -1,4 +1,4 @@
-//! Loopback-only Ollama client (brief section 5 / 10).
+//! Loopback-only Ollama client.
 //!
 //! Hard constraints, enforced here rather than trusted from config:
 //! - The base URL host must be `127.0.0.1` or `localhost`. Any other host
@@ -148,8 +148,7 @@ struct ChatResponse {
     message: ChatMessage,
 }
 
-/// Readiness test using synthetic text only — never journal content
-/// (brief section 5, "Local model setup").
+/// Readiness test using synthetic text only — never journal content.
 pub async fn readiness_check_embedding(client: &OllamaClient, model: &str) -> Result<usize> {
     let v = client.embed(model, "Anchor readiness check: the quick brown fox jumps over the lazy dog.").await?;
     if v.is_empty() || v.iter().any(|x| !x.is_finite()) {

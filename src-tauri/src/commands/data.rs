@@ -1,5 +1,5 @@
 //! Export/import, Markdown export, backup/restore, vault erasure, and the
-//! demo/personal vault switch (brief sections 11 & 13).
+//! demo/personal vault switch.
 
 use crate::backup;
 use crate::db::repo;
@@ -74,8 +74,7 @@ pub struct VaultExport {
 
 /// Portable export. Deliberately excludes: transient jobs, embeddings, raw
 /// session chats (there are none persisted to exclude — chat is
-/// session-only by design), absolute machine paths, and consent state
-/// (brief section 11, "Portable export").
+/// session-only by design), absolute machine paths, and consent state.
 #[tauri::command]
 pub fn export_vault_json(vault: State<VaultManager>) -> AnchorResult<String> {
     let v = vault.current();
@@ -170,8 +169,7 @@ pub fn preview_vault_import(json: String) -> AnchorResult<ImportPreview> {
 /// open) inside a single transaction; on any failure nothing is written.
 /// Newly imported entries keep their memoryEnabled flag but are NOT
 /// automatically enqueued for indexing — that requires local-AI consent
-/// plus the user separately triggering `rebuild_index` (brief section 11,
-/// "indexed only after local-AI consent and user confirmation").
+/// plus the user separately triggering `rebuild_index`.
 #[tauri::command]
 pub fn import_vault_json(vault: State<VaultManager>, json: String) -> AnchorResult<ImportPreview> {
     let (parsed, preview) = preview_import(&json)?;
@@ -226,8 +224,8 @@ pub fn import_vault_json(vault: State<VaultManager>, json: String) -> AnchorResu
 /// native save dialog on the frontend. Deliberately narrow — the renderer
 /// has no generic filesystem plugin; this command only ever writes UTF-8
 /// text below a sane size cap, never arbitrary bytes or paths the user
-/// didn't explicitly choose (brief section 10, "no general HTTP proxy" /
-/// "no arbitrary file access").
+/// didn't explicitly choose — no general HTTP proxy, no arbitrary file
+/// access.
 #[tauri::command]
 pub fn write_text_export(path: String, content: String) -> AnchorResult<()> {
     if content.len() > 100_000_000 {

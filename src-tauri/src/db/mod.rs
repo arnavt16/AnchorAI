@@ -8,10 +8,10 @@ use std::sync::{Arc, Mutex};
 
 pub type Pool = r2d2::Pool<SqliteConnectionManager>;
 
-/// Which vault is currently open. Demo and personal data must never mix
-/// (brief section 3/13): they live in physically separate SQLite files
-/// under separate directories, and switching bumps `vault_generation` so
-/// any in-flight job or reflection from the other vault is rejected.
+/// Which vault is currently open. Demo and personal data must never mix:
+/// they live in physically separate SQLite files under separate
+/// directories, and switching bumps `vault_generation` so any in-flight
+/// job or reflection from the other vault is rejected.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum VaultMode {

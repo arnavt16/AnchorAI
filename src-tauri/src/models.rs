@@ -56,8 +56,7 @@ pub struct SmallStep {
 }
 
 /// A worry together with its full chronological outcome history and any
-/// linked small steps — the shape the UI actually renders (brief section 4,
-/// "Worry Loop").
+/// linked small steps — the shape the UI actually renders.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorryWithHistory {

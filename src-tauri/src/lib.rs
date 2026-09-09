@@ -22,8 +22,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // Second launch attempt: focus the existing window instead of
-            // opening a second one against the same SQLite file (brief
-            // section 6, "single-instance policy").
+            // opening a second one against the same SQLite file.
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.set_focus();
             }
