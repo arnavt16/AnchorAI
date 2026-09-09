@@ -11,6 +11,20 @@ substitute for professional care. See [SECURITY.md](./SECURITY.md) for the
 full privacy and threat-model writeup, and [PROJECT_STATUS.md](./PROJECT_STATUS.md)
 for exactly what's implemented, tested, and still deferred.
 
+<!--
+  Screenshot(s) go here. Once you've run `npm run tauri dev` locally:
+  1. Take a screenshot of the Reflect screen (ideally showing a cited
+     response with the source drawer open) and/or the Worry Loop screen.
+  2. Save it as docs/screenshots/reflect.png (create the folder).
+  3. Replace this comment block with:
+
+     ![Anchor's Reflect screen, showing a memory-grounded response with cited sources](./docs/screenshots/reflect.png)
+
+  A short screen recording works well too — GitHub renders .gif files
+  inline the same way; export one as docs/screenshots/demo.gif and embed
+  it the same way with an <img> or markdown image tag instead.
+-->
+
 ## What's here right now
 
 This repository is the Phase 1–4 core described in `docs/brief.md`'s
