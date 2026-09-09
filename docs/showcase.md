@@ -1,19 +1,33 @@
-# 60–90 second showcase script
+# Demo notes
 
-For demoing Anchor once it's built and Ollama is set up on your machine.
-Turn off networking (or just note that Anchor works this way) before
-starting, to make the offline claim visible rather than asserted.
+Quick notes to myself for walking someone through Anchor (interview,
+demo day, whatever) once it's built and Ollama is set up. Roughly a
+minute and a half if I don't ramble.
 
-1. **(0:00)** Open Anchor. Point out the vault location shown in Settings — a plain file on this computer, nothing cloud about it.
-2. **(0:10)** Write a new entry: an interview worry. Track it as a worry with an expected outcome. Save.
-3. **(0:20)** Go to the demo vault (Settings → toggle it on) instead of waiting for real history to accumulate — it seeds 20 fictional entries including a resolved interview-anxiety worry with a linked outcome.
-4. **(0:30)** Go to Reflect, ask about interview nerves, pick "Look for a related experience." Show the response citing the fictional past entry and its recorded outcome.
-5. **(0:50)** Open the source drawer — click through to see the actual retrieved passage and date, not just the model's paraphrase.
-6. **(1:00)** Go to a worry with a *mixed or unfavorable* recorded outcome (e.g. the internship rejection fixture) and reflect on something related. Point out the response doesn't rewrite the bad outcome as reassurance — this is the detail that's easy to get wrong and worth calling out explicitly.
-7. **(1:15)** In Settings, toggle memory off for one entry. Reflect again on something that would have matched it, and show it's gone from the sources.
-8. **(1:25)** Restart the app. Show the entry, worry, and outcome are still there — canonical data survived the restart; only the session chat did not (open Reflect again and note the conversation reset).
+- Open Anchor, point at the vault location in Settings — it's just a
+  file on this computer, nothing cloud about it. Worth turning off wifi
+  first so the offline part isn't just something I'm claiming.
+- Write a new entry — an interview worry works well. Track it as a
+  worry with an expected outcome, save it.
+- Switch on the demo vault in Settings instead of waiting on real
+  history. It seeds 20 fictional entries, including a resolved
+  interview-anxiety worry with a linked outcome.
+- Go to Reflect, ask about interview nerves, pick "Look for a related
+  experience." It should cite the fictional past entry and its recorded
+  outcome.
+- Open the source drawer so it's clear this is pulling an actual
+  retrieved passage and date, not just the model paraphrasing on its own.
+- Then reflect on something related to a worry with a mixed or bad
+  outcome (the internship rejection fixture is a good one) — the
+  response shouldn't rewrite that as reassurance. This is the part
+  that's easy to get wrong if you're not careful about it, so it's worth
+  pointing out explicitly.
+- In Settings, toggle memory off for one entry, reflect again on
+  something that would've matched it, show it's gone from the sources.
+- Restart the app. Entry/worry/outcome are still there — that's the
+  canonical data surviving a restart. Only the session chat resets
+  (reopen Reflect and the conversation's gone).
 
-Total: ~90 seconds. The two moments worth lingering on if you have more
-time: the linked-outcome expansion (step 4) and the honest-unfavorable-
-outcome behavior (step 6) — those are the two things a generic RAG demo
-over raw text usually gets wrong or doesn't attempt at all.
+The two parts worth lingering on if there's time: the linked-outcome
+expansion, and the fact that it doesn't sugarcoat a bad outcome. Most
+RAG-over-raw-text demos don't really attempt either of those.
