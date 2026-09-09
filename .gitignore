@@ -37,3 +37,10 @@ coverage/
 # Rust
 **/*.rs.bk
 Cargo.lock.bak
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Files the Claude desktop app drops into this folder when it delivers
+# outputs — never part of the actual project
+Claude outputs/

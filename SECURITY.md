@@ -1,9 +1,8 @@
 # Security & privacy
 
 This document describes what Anchor actually protects against, what it
-doesn't, and where the honest limits are. It corresponds to `docs/brief.md`
-section 10 ("Desktop privacy and security") and section 17.7 (the
-architecture/privacy deliverable that brief asks for).
+doesn't, and where the honest limits are. It corresponds to the "Desktop
+privacy and security" and architecture/privacy sections of `docs/spec.md`.
 
 ## Threat model
 
@@ -44,9 +43,8 @@ Anchor's MVP does **not** protect against:
   on Windows, LUKS on Linux) and someone gets physical or admin access to
   the machine, they can read the vault file directly with any SQLite tool.
   **Anchor does not currently implement database encryption.** Adding it is
-  explicitly out of scope for this milestone (see `docs/brief.md` section
-  10) and would need a real key-management design, not an ad-hoc password
-  gate.
+  explicitly out of scope for this milestone and would need a real
+  key-management design, not an ad-hoc password gate.
 - **A compromised or malicious Ollama installation**, or another local
   process capable of reaching `127.0.0.1:11434`. Loopback-only
   communication reduces exposure to the network but is not authentication.
@@ -121,10 +119,9 @@ file's module doc in full before relying on it for anything. In short:
   human must review and re-verify this list.**
 - **Human review of model behavior on the safety fixtures, and of this
   entire subsystem, is required before any public or clinical-adjacent
-  release.** This was built and unit-tested (`src-tauri/tests/safety_tests.rs`)
-  in an environment with no access to real Ollama models, so the fixtures
-  test the deterministic keyword layer only — they say nothing about how
-  the actual chat model behaves on ambiguous or figurative distress
+  release.** The automated tests (`src-tauri/tests/safety_tests.rs`)
+  exercise the deterministic keyword layer only — they say nothing about
+  how the actual chat model behaves on ambiguous or figurative distress
   language in a live conversation. That requires running the fixtures
   through a real model and reading the transcripts by hand.
 

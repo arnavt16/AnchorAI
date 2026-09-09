@@ -8,8 +8,8 @@ retrieved and generated entirely on your own computer.
 Anchor is an applied LLM/RAG engineering portfolio project, not a clinical
 product. It is not clinically validated, does not diagnose, and is not a
 substitute for professional care. See [SECURITY.md](./SECURITY.md) for the
-full privacy and threat-model writeup, and [PROJECT_STATUS.md](./PROJECT_STATUS.md)
-for exactly what's implemented, tested, and still deferred.
+full privacy and threat-model writeup, and [Project status](#project-status)
+below for exactly what's implemented, tested, and still deferred.
 
 <!--
   Screenshot(s) go here. Once you've run `npm run tauri dev` locally:
@@ -27,14 +27,14 @@ for exactly what's implemented, tested, and still deferred.
 
 ## What's here right now
 
-This repository is the Phase 1–4 core described in `docs/brief.md`'s
-implementation plan (see section 18, "month-one milestone"): a working
-desktop shell, full journal + Worry Loop CRUD, a real local embedding/RAG
+This repository is the Phase 1–4 core described in `docs/spec.md`'s
+implementation plan (see "month-one milestone"): a working desktop
+shell, full journal + Worry Loop CRUD, a real local embedding/RAG
 pipeline against Ollama, structured reflection with source citations, and
 the safety/privacy plumbing (consent, memory exclusion, urgent-distress
 routing, session-only chat). Packaging a signed installer, the full
 usability study, and a few convenience features are **not** done yet — see
-`PROJECT_STATUS.md`.
+[Project status](#project-status) below.
 
 ## For end users: installing and running Anchor
 
@@ -58,7 +58,9 @@ You can use Anchor as a plain journal without Ollama at all.
 
 ### 2. Get Anchor running
 
-This build was developed and smoke-tested on Linux (the environment used to build it) and has **not yet been packaged or run on macOS** — see `PROJECT_STATUS.md` for exactly what "smoke-tested" means here. To build and run it on your Mac:
+This build was developed and smoke-tested on Linux and has **not yet been
+packaged or run on macOS** — see [Project status](#project-status) below
+for exactly what's been verified where. To build and run it on your Mac:
 
 1. Install [Node.js](https://nodejs.org) (v20+) and [Rust](https://www.rust-lang.org/tools/install) (`curl https://sh.rustup.rs -sSf | sh`).
 2. Install Xcode Command Line Tools: `xcode-select --install`.
@@ -68,7 +70,7 @@ This build was developed and smoke-tested on Linux (the environment used to buil
    npm run tauri build
    ```
    The first build compiles Rust dependencies and can take several minutes. The finished app bundle will be under `src-tauri/target/release/bundle/macos/` (and a `.dmg` under `bundle/dmg/` if that target succeeds on your machine).
-4. Open the built `Anchor.app`. On first launch, macOS Gatekeeper will likely warn that the app is from an unidentified developer (it isn't signed or notarized — see `PROJECT_STATUS.md`). Right-click the app and choose "Open" to bypass this once, or allow it in System Settings → Privacy & Security.
+4. Open the built `Anchor.app`. On first launch, macOS Gatekeeper will likely warn that the app is from an unidentified developer (it isn't signed or notarized yet — see [Project status](#project-status) below). Right-click the app and choose "Open" to bypass this once, or allow it in System Settings → Privacy & Security.
 5. To iterate on the app without a full release build, use `npm run tauri dev` instead of step 3.
 
 Your journal lives in this Mac's per-user Application Support directory
@@ -123,7 +125,7 @@ tests/unit/            Vitest frontend tests
 
 - **Every SQL statement lives in `src-tauri/src/db/repo.rs`.** Commands, the indexing worker, and the RAG pipeline all call into it rather than writing ad-hoc queries, so there's exactly one place that knows the schema shape.
 - **The frontend never calls `invoke()` directly** outside `src/lib/ipc.ts`. If you're adding a new Tauri command, add its wrapper there too.
-- **`aggregate_version` and `embedding_space_version`** are the two version counters that make "a worry's outcome changed three weeks after the worry was indexed" work correctly — see `src-tauri/src/indexing/worker.rs`'s module doc and `docs/brief.md` section 7 for the full reasoning. The retrieval tests in `src-tauri/tests/retrieval_tests.rs` are the executable spec for this.
+- **`aggregate_version` and `embedding_space_version`** are the two version counters that make "a worry's outcome changed three weeks after the worry was indexed" work correctly — see `src-tauri/src/indexing/worker.rs`'s module doc and `docs/spec.md` for the full reasoning. The retrieval tests in `src-tauri/tests/retrieval_tests.rs` are the executable spec for this.
 - **The urgent-distress path (`src-tauri/src/safety/mod.rs`) is a keyword pre-filter, explicitly not a validated clinical triage system.** Read that file's module doc before changing it, and see `evals/fixtures/safety_fixtures.json` for its known false-positive/false-negative tradeoffs.
 
 ## Evaluating retrieval quality
@@ -131,10 +133,26 @@ tests/unit/            Vitest frontend tests
 `evals/fixtures/demo_entries.json` and `evals/fixtures/eval_queries.json` are
 a small labeled fixture set for manually or programmatically evaluating
 retrieval quality (see `evals/README.md`). Running the actual three-way
-comparison described in the brief (no-retrieval vs. plain top-k vs.
+comparison described in `docs/spec.md` (no-retrieval vs. plain top-k vs.
 Anchor's version-aware retrieval) requires a running local Ollama with
-models pulled — that hasn't been run as part of building this repository,
-since this build environment has no Ollama runtime installed. The fixtures
-and harness design are ready for you to run this yourself; see
-`evals/README.md` for exact steps and `PROJECT_STATUS.md` for what's been
-verified here versus what's left for you to check on your own machine.
+models pulled. The fixtures and harness design are ready to run yourself;
+see `evals/README.md` for exact steps.
+
+## Project status
+
+The core product is complete: journal entries with search and tagging,
+full Worry Loop tracking (worries, recorded outcomes, small steps), a
+local embedding/RAG pipeline against Ollama with cited reflection
+responses and a natural-language fallback when structured output isn't
+available, the urgent-distress safety pre-filter, and consent/memory
+controls, backup/export, and vault erasure. Verified with 20 passing Rust
+integration tests and 17 passing frontend unit tests (`cargo test` /
+`npm test`) — see "For developers" above to run them yourself.
+
+Developed and smoke-tested on Linux; not yet packaged, signed, or
+notarized for macOS distribution (build it yourself per the steps above,
+or run `npm run tauri dev`). Not yet done: a signed/notarized installer,
+database-level encryption at rest, in-app model download, a broader
+usability study, and running the retrieval evaluation fixtures against a
+live model (the harness is ready — see `evals/README.md`). None of this
+is hidden or stubbed out; it's listed here plainly.
