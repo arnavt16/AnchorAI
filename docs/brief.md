@@ -1,0 +1,19 @@
+# Anchor: local-first desktop implementation brief for Claude Code
+
+*This is the opening framing of the original implementation brief provided at project kickoff, reproduced verbatim below. Sections 1–18 (product concept, scope, user journeys, screens, architecture, data model, indexing, retrieval/generation, assistant behavior, security, backup/export, repo structure, demo/evaluation, acceptance tests, phases, packaging, deliverables, and the one-month milestone) are summarized rather than reproduced in full here to keep this file a reasonable size — the section numbers referenced throughout this repository's code comments, README.md, and SECURITY.md match the original brief's numbering. See `../PROJECT_STATUS.md` for what has actually been implemented, tested, and verified against that brief versus what remains deferred.*
+
+## Instructions for Claude Code
+
+Build Anchor, a downloadable desktop application for private journaling and memory-grounded mental wellness reflection. Its defining feature is Worry Loop: connect a current worry to relevant past worries, user-recorded outcomes, and things the user said helped.
+
+This brief replaces the earlier cloud-web architecture. The required design is a standalone Tauri application with React, TypeScript, SQLite, and local Ollama models. Obsidian is not required. There is no cloud database, website backend, hosted authentication, API key requirement, or automatic cloud AI fallback. Journal storage, embeddings, retrieval, and AI inference happen on the user's device.
+
+Read this entire brief before implementation. Inspect the repository and its instructions, preserve existing work, and resolve routine technical decisions independently. If the repository has the earlier web scaffold, adapt reusable components and document the migration. Do not retain a running Next.js server or cloud dependency merely because it already exists. Implement in phases and finish with a working desktop build, tests, and setup documentation; do not stop after another plan.
+
+Build locally without publishing, buying certificates, or creating external accounts. For the prototype, users install Anchor and Ollama separately and download supported models through guided setup. Do not silently install software, change a shared Ollama configuration, or download multi-gigabyte models. Make these explicit setup actions. If models or build tools are unavailable, implement the real integration and a clearly labeled fictional demo mode, reporting unverified checks honestly.
+
+Use the host operating system as the initial verified build target. Keep the source portable across macOS, Windows, and Linux, but only claim support for platforms actually tested. End users should not need Node.js, Rust, a terminal, or a development server to launch the packaged app. Developer build prerequisites are separate.
+
+This is an adult-oriented portfolio prototype for reflection and support, not clinically validated treatment. Do not claim diagnosis, therapy efficacy, HIPAA compliance, guaranteed security, or comprehensive crisis detection. Human review of model behavior and desktop security is required before a public mental health release.
+
+*(Sections 1–18 of the original brief — product concept, scope and priorities, user journeys, screens, technical architecture, storage/data model, indexing lifecycle, retrieval/generation pipeline, assistant behavior, desktop security, backup/export/erasure, repository structure, demo/evaluation, acceptance tests, implementation phases, packaging, final deliverables, and the one-month portfolio milestone — are the full working specification this repository was built against. They are reproduced in the project's conversation history and summarized by section throughout this codebase's comments and docs; consult `PROJECT_STATUS.md` for the section-by-section implementation status rather than re-deriving intent from this abbreviated copy.)*

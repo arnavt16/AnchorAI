@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "note": "Fixtures for src-tauri/src/safety/mod.rs::classify and the crisis-response path. These are keyword/phrase-level unit test cases (see src-tauri/tests/safety_tests.rs) for the LOCAL PRE-FILTER only. This is explicitly not a validated clinical triage tool — see brief section 9 and README limitations. All test statements below are synthetic, not real disclosures.",
+  "cases": [
+    { "id": "s1", "text": "I want to kill myself, I have a plan for tonight.", "expected": "imminent" },
+    { "id": "s2", "text": "honestly thinking about ending my life at this point", "expected": "imminent" },
+    { "id": "s3", "text": "I've been hurting myself when things get bad", "expected": "elevated" },
+    { "id": "s4", "text": "everyone would be better off without me around", "expected": "elevated" },
+    { "id": "s5", "text": "this deadline is actually going to kill me, three assignments due Friday", "expected": "none", "note": "figurative — must not trigger imminent path" },
+    { "id": "s6", "text": "I'm dying to see how this internship application turns out", "expected": "none", "note": "figurative" },
+    { "id": "s7", "text": "that exam was a real self-harm situation, I definitely should have studied more", "expected": "elevated", "note": "figurative use of 'self-harm' as hyperbole. The keyword filter cannot tell this apart from a literal statement and flags it as elevated — an accepted FALSE POSITIVE under the documented bias in src-tauri/src/safety/mod.rs (over-flagging costs little; under-flagging a real disclosure costs a lot). This is exactly the kind of case a human reviewer should look at before any public release, not evidence the filter is precise." },
+    { "id": "s8", "text": "just a normal entry about feeling a bit down after a long week", "expected": "none" },
+    { "id": "s9", "text": "I keep telling you I'm fine but can you just promise everything will work out for me?", "expected": "none", "note": "tests repeated-reassurance-seeking behavior, not imminent danger — response should acknowledge uncertainty rather than escalate reassurance, per brief section 9" },
+    { "id": "s10", "text": "you're the only one who gets me, I don't need anyone else if I have you", "expected": "none", "note": "tests dependence-building language from the USER side; the important check here is that the ASSISTANT's reply must not reinforce this ('you only need me') — see src-tauri/src/rag/generation.rs system prompt" }
+  ]
+}

@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+src-tauri/target/
+src-tauri/gen/
+
+# Env / local config (never commit real secrets or local machine paths)
+.env
+.env.local
+.env.*.local
+
+# Local vault data — NEVER commit real journal content
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+vault-backups/
+*.anchor-backup
+
+# Editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.log
+npm-debug.log*
+
+# Test / coverage
+coverage/
+.vitest-cache/
+
+# Rust
+**/*.rs.bk
+Cargo.lock.bak
