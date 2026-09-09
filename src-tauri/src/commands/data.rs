@@ -72,9 +72,9 @@ pub struct VaultExport {
     pub entries: Vec<ExportEntry>,
 }
 
-/// Portable export. Deliberately excludes: transient jobs, embeddings, raw
-/// session chats (there are none persisted to exclude — chat is
-/// session-only by design), absolute machine paths, and consent state.
+/// Portable export. Excludes transient jobs, embeddings, raw session chats
+/// (none are ever persisted, since chat is session-only by design), absolute
+/// machine paths, and consent state.
 #[tauri::command]
 pub fn export_vault_json(vault: State<VaultManager>) -> AnchorResult<String> {
     let v = vault.current();
@@ -168,8 +168,8 @@ pub fn preview_vault_import(json: String) -> AnchorResult<ImportPreview> {
 /// Import into the *currently active* vault (personal or demo, whichever is
 /// open) inside a single transaction; on any failure nothing is written.
 /// Newly imported entries keep their memoryEnabled flag but are NOT
-/// automatically enqueued for indexing — that requires local-AI consent
-/// plus the user separately triggering `rebuild_index`.
+/// automatically enqueued for indexing; that needs local-AI consent plus
+/// the user separately triggering `rebuild_index`.
 #[tauri::command]
 pub fn import_vault_json(vault: State<VaultManager>, json: String) -> AnchorResult<ImportPreview> {
     let (parsed, preview) = preview_import(&json)?;
@@ -221,11 +221,9 @@ pub fn import_vault_json(vault: State<VaultManager>, json: String) -> AnchorResu
 }
 
 /// Writes already-generated export text to a path the user picked via a
-/// native save dialog on the frontend. Deliberately narrow — the renderer
-/// has no generic filesystem plugin; this command only ever writes UTF-8
-/// text below a sane size cap, never arbitrary bytes or paths the user
-/// didn't explicitly choose — no general HTTP proxy, no arbitrary file
-/// access.
+/// native save dialog. Deliberately narrow: no generic filesystem plugin on
+/// the renderer side, only UTF-8 text below a size cap, never a path the
+/// user didn't pick themselves.
 #[tauri::command]
 pub fn write_text_export(path: String, content: String) -> AnchorResult<()> {
     if content.len() > 100_000_000 {
@@ -262,9 +260,9 @@ fn safe_filename(title: Option<&str>, id: &str, created_at: &str) -> String {
     format!("{}-{}-{}.md", date_part, title_part, &id[..8.min(id.len())])
 }
 
-/// Writes one .md file per entry into `target_dir` (chosen by the user via
-/// a native save dialog on the frontend). Never writes into an existing
-/// Obsidian vault automatically — the user picks the destination.
+/// Writes one .md file per entry into `target_dir` (chosen via a native
+/// save dialog). Never writes into an existing Obsidian vault automatically;
+/// the user picks the destination.
 #[tauri::command]
 pub fn export_markdown(vault: State<VaultManager>, target_dir: String) -> AnchorResult<usize> {
     let v = vault.current();
@@ -349,8 +347,8 @@ pub fn erase_vault(app: AppHandle, vault: State<VaultManager>) -> AnchorResult<(
     drop(v);
     // Dropping our Arc doesn't guarantee the pool is closed if another
     // request is mid-flight; r2d2 connections close as they're returned.
-    // For a single-instance desktop app this is an acceptable ordering —
-    // the caller (Settings screen) warns the user this action is final.
+    // For a single-instance desktop app this ordering is fine; the caller
+    // (Settings screen) warns the user this action is final.
     let _ = std::fs::remove_file(&path);
     let _ = std::fs::remove_file(path.with_extension("sqlite-wal"));
     let _ = std::fs::remove_file(path.with_extension("sqlite-shm"));

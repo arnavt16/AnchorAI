@@ -17,11 +17,9 @@ Rules you must follow:
 - If RETRIEVED HISTORY is empty, say plainly that no relevant history was found, and give a general, honest reflection instead — do not force a connection.
 - Respond ONLY with a single JSON object matching the provided schema. No prose outside the JSON."#;
 
-/// Same behavioral rules as `SYSTEM_INSTRUCTIONS`, but for a plain
-/// natural-language reply instead of schema-constrained JSON. Used when the
-/// model has already failed structured output twice — the user should never
-/// see a dead-end apology when the model is perfectly capable of a normal
-/// conversational answer.
+/// Same rules as `SYSTEM_INSTRUCTIONS`, for a plain natural-language reply
+/// instead of schema-constrained JSON. Used after structured output has
+/// failed twice, so the user gets a normal answer instead of a dead end.
 const PLAIN_SYSTEM_INSTRUCTIONS: &str = r#"You are Anchor's reflection assistant, running entirely on the user's own computer. Reply the way a thoughtful, warm person would in a real conversation — plain text, no JSON, no markdown headers, just a natural reply.
 
 Rules you must follow:
@@ -130,9 +128,8 @@ pub fn build_plain_messages(
 }
 
 /// Parse + validate a raw model response against the supplied `sources`.
-/// Unknown source ids are stripped (not trusted), never used to reject the
-/// whole response outright on a first pass — the caller decides whether to
-/// attempt one repair round.
+/// Unknown source ids get stripped rather than rejecting the whole
+/// response; the caller decides whether to attempt a repair round.
 pub fn parse_and_validate(raw_json: &str, sources: &[RetrievedSource]) -> Result<ValidatedReflection, String> {
     let valid_ids: std::collections::HashSet<&str> = sources.iter().map(|s| s.id.as_str()).collect();
     let parsed: RawReflection = serde_json::from_str(raw_json).map_err(|e| e.to_string())?;
@@ -158,10 +155,9 @@ pub fn parse_and_validate(raw_json: &str, sources: &[RetrievedSource]) -> Result
     })
 }
 
-/// Ask the model for a plain natural-language reply (no JSON schema). Used
-/// once structured output has already failed twice — this call almost
-/// always succeeds, because it asks the model to do the one thing every
-/// chat model is fundamentally good at: reply in plain text.
+/// Ask the model for a plain natural-language reply, no JSON schema. Used
+/// after structured output fails twice — plain text is the one thing
+/// every chat model is reliably good at.
 pub async fn generate_plain_text(
     client: &OllamaClient,
     chat_model: &str,
@@ -227,9 +223,8 @@ pub async fn generate_reflection(
     }
 }
 
-/// Last-resort fallback for when even a plain natural-language call fails
-/// outright (e.g. the runtime became unreachable mid-request). Never
-/// fabricates a memory claim.
+/// Last-resort fallback for when even a plain call fails outright (e.g.
+/// the runtime goes unreachable mid-request). Never fabricates a memory claim.
 pub fn fallback_reflection(sources: &[RetrievedSource]) -> ValidatedReflection {
     ValidatedReflection {
         sections: vec![ReflectionSection {

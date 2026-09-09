@@ -40,8 +40,8 @@ function Onboarding() {
     try {
       if (!localStorage.getItem(ONBOARDING_KEY)) setOpen(true);
     } catch {
-      // Private/blocked storage: just don't show a persistent dismissal —
-      // showing the dialog every launch is a safe fallback, not a crash.
+      // Private/blocked storage: just don't show a persistent dismissal.
+      // Showing the dialog every launch is a safe fallback, not a crash.
       setOpen(true);
     }
   }, []);

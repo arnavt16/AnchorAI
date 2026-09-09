@@ -4,12 +4,11 @@ import { useAppState } from "@/lib/state";
 import { systemApi, type RuntimeStatus, type ReadinessResult } from "@/lib/ipc";
 import { Button, Card, CardContent, Select, Badge, Spinner } from "@/components/ui";
 
-// A short, deliberately small allowlist of models known to work well with
-// Anchor's reflection pipeline at prototype scale — a mix of strong
-// structured-JSON compliance (for the cited path) and warm conversational
-// tone (for the natural-language fallback path), since Reflect now uses
-// both. This is NOT an exhaustive list of everything Ollama can run — see
-// README for how to point Anchor at a different model you've verified
+// Small, deliberately curated allowlist of models that work well with
+// Anchor's pipeline at prototype scale: a mix of strong structured-JSON
+// compliance (cited path) and warm conversational tone (fallback path),
+// since Reflect uses both. Not exhaustive - see README for how to point
+// Anchor at a different model you've verified
 // yourself.
 const SUGGESTED_CHAT_MODELS = ["qwen3.5:9b", "llama3.1:8b", "gemma4:12b"];
 const SUGGESTED_EMBEDDING_MODELS = ["nomic-embed-text", "mxbai-embed-large", "all-minilm"];

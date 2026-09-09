@@ -19,7 +19,7 @@ pub struct ReflectInput {
 
 /// Runs one reflection turn. Indexing is paused for the duration so the
 /// model gets full attention while the user is actively waiting. Chat
-/// history itself is never persisted here — the frontend keeps the
+/// history itself is never persisted here: the frontend keeps the
 /// conversation in memory only and this command is stateless per call.
 #[tauri::command]
 pub async fn reflect(vault: State<'_, VaultManager>, control: State<'_, IndexingControl>, input: ReflectInput) -> AnchorResult<ValidatedReflection> {
@@ -66,7 +66,7 @@ pub struct SaveReflectionInput {
 }
 
 /// Explicit "Save my reflection" action: the user reviews and edits the
-/// wording themselves before it becomes a journal entry — AI wording is
+/// wording themselves before it becomes a journal entry. AI wording is
 /// never silently turned into an autobiographical fact.
 #[tauri::command]
 pub fn save_reflection_as_entry(vault: State<VaultManager>, input: SaveReflectionInput) -> AnchorResult<JournalEntry> {

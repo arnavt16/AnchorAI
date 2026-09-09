@@ -1,7 +1,7 @@
 /**
  * Typed wrappers around Anchor's narrow Tauri commands (see
  * src-tauri/src/commands/*.rs). This is the ONLY place the frontend talks
- * to `invoke` — screens and components import from here, never call
+ * to `invoke`. Screens and components import from here, never call
  * `@tauri-apps/api/core` directly, so the IPC surface stays auditable in
  * one file.
  */
@@ -137,8 +137,8 @@ export interface ValidatedReflection {
   usedMemory: boolean;
   urgentPathTriggered: boolean;
   /** True only for the structured, cited path. False for natural-language
-   * fallback replies and the urgent-distress path — still a real answer,
-   * just not schema-verified. */
+   * fallback replies and the urgent-distress path (still a real answer,
+   * just not schema-verified). */
   citationsVerified: boolean;
 }
 

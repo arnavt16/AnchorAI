@@ -10,7 +10,7 @@
 //!   inspects what Ollama reports and only local pull manifests found on
 //!   disk are surfaced; Ollama's cloud-backed model names are still just
 //!   strings from the same API, so this filtering is best-effort, not
-//!   cryptographic — see SECURITY.md "Local runtime limitations".
+//!   cryptographic. See SECURITY.md "Local runtime limitations".
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -79,7 +79,7 @@ impl OllamaClient {
     }
 
     /// Request a chat completion. `format` is JSON-schema-ish (Ollama's
-    /// `format` field accepts `"json"` or a JSON schema object) — the RAG
+    /// `format` field accepts `"json"` or a JSON schema object); the RAG
     /// pipeline passes a schema and validates the parsed result itself
     /// rather than trusting the model's claim of conformance.
     pub async fn chat(&self, model: &str, messages: &[ChatMessage], format: Option<serde_json::Value>) -> Result<String> {
@@ -148,7 +148,7 @@ struct ChatResponse {
     message: ChatMessage,
 }
 
-/// Readiness test using synthetic text only — never journal content.
+/// Readiness test using synthetic text only, never journal content.
 pub async fn readiness_check_embedding(client: &OllamaClient, model: &str) -> Result<usize> {
     let v = client.embed(model, "Anchor readiness check: the quick brown fox jumps over the lazy dog.").await?;
     if v.is_empty() || v.iter().any(|x| !x.is_finite()) {

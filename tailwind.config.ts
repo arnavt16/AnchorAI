@@ -1,8 +1,7 @@
 import type { Config } from "tailwindcss";
 
-// Calm, contemporary palette: warm neutral background, muted green/blue accents.
-// Chosen to look hand-designed rather than "AI slop" — restrained hues, generous
-// spacing scale, no gradients or drop shadows by default.
+// Calm, contemporary palette: warm neutral background, muted green/blue
+// accents, restrained hues, generous spacing, no gradients or drop shadows.
 export default {
   darkMode: ["class"],
   content: ["./index.html", "./src/**/*.{ts,tsx}"],

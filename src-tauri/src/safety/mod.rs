@@ -1,16 +1,14 @@
 //! Urgent-distress routing.
 //!
-//! This is a conservative, local, keyword-anchored pre-filter — explicitly
-//! NOT presented as reliable clinical triage. It exists so that a bundled,
-//! reviewed supportive response is available even when Ollama is down, and
-//! so normal memory-based reflection is skipped for evident imminent-danger
-//! statements. It is deliberately biased toward false positives (routing a
-//! merely dramatic sentence to the supportive path costs little) rather
-//! than false negatives. A local model classifier or a real crisis-triage
-//! system is future work — see SECURITY.md limitations and
-//! `evals/fixtures/safety_fixtures.json` for the labeled test set this was
-//! tuned against, none of which is a substitute for the human review
-//! required before any public release.
+//! A conservative, local, keyword-anchored pre-filter. Not clinical triage.
+//! Exists so a bundled supportive response is available even if Ollama is
+//! down, and so normal memory-based reflection gets skipped for evident
+//! imminent-danger statements. Biased toward false positives on purpose:
+//! routing a merely dramatic sentence to the supportive path costs little,
+//! missing a real disclosure costs a lot. A local model classifier or real
+//! crisis-triage system is future work — see SECURITY.md and
+//! evals/fixtures/safety_fixtures.json for the labeled set this was tuned
+//! against. Human review is still required before any public release.
 
 use serde::{Deserialize, Serialize};
 
@@ -23,9 +21,8 @@ pub enum DistressLevel {
 }
 
 /// High-signal phrases for evident imminent danger. Kept short and
-/// conservative on purpose; figurative language ("this deadline is going to
-/// kill me") is intentionally NOT matched — see the figurative-language
-/// fixtures in evals/.
+/// conservative; figurative language ("this deadline is going to kill me")
+/// is intentionally not matched — see the figurative fixtures in evals/.
 const IMMINENT_PATTERNS: &[&str] = &[
     "kill myself",
     "end my life",
@@ -71,11 +68,9 @@ pub struct CrisisResource {
     pub verified_at: &'static str,
 }
 
-/// Small, auditable, offline-bundled resource list. Verify and refresh
-/// these during an actual reviewed release — do not treat this list as
-/// currently re-verified; `verified_at` records when it was last checked
-/// against the source, and this build has not re-checked it against the
-/// live sources listed.
+/// Small, auditable, offline-bundled resource list. Needs to be verified
+/// and refreshed before a real release — `verified_at` records when it
+/// was last checked, and this build hasn't re-checked it.
 pub const CRISIS_RESOURCES: &[CrisisResource] = &[
     CrisisResource {
         country: "US",
@@ -101,8 +96,8 @@ pub fn resources_for_country(country: Option<&str>) -> Vec<CrisisResource> {
 }
 
 /// Bundled, reviewed supportive response for evident imminent-danger
-/// statements. Must remain available even if Ollama is unreachable —
-/// callers should show this before ever attempting a model call.
+/// statements. Must stay available even if Ollama is unreachable; callers
+/// should show this before attempting a model call.
 pub fn imminent_danger_response(country: Option<&str>) -> String {
     let mut msg = String::from(
         "What you're describing sounds like it may be an emergency. I'm not able to \

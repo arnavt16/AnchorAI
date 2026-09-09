@@ -56,7 +56,7 @@ pub struct SmallStep {
 }
 
 /// A worry together with its full chronological outcome history and any
-/// linked small steps — the shape the UI actually renders.
+/// linked small steps: the shape the UI actually renders.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorryWithHistory {
@@ -113,8 +113,8 @@ pub struct ValidatedReflection {
     pub urgent_path_triggered: bool,
     /// True only when the model produced valid, schema-conformant JSON with
     /// source citations we could verify (the structured path). False for
-    /// natural-language fallback responses and the urgent-distress path —
-    /// the UI uses this to decide whether to show cited-source affordances,
+    /// natural-language fallback responses and the urgent-distress path.
+    /// The UI uses this to decide whether to show cited-source affordances,
     /// never to withhold an answer.
     pub citations_verified: bool,
 }

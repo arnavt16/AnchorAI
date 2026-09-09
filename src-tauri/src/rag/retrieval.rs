@@ -2,9 +2,9 @@
 //! the active vault, eligible parents, current source versions, and the
 //! active embedding space.
 //!
-//! Exact (not approximate/indexed) search: fine for a personal-journal
-//! scale prototype — add an ANN index only if the stress benchmark in
-//! `evals/` shows it's actually needed.
+//! Exact (not approximate/indexed) search: fine at personal-journal scale.
+//! Only worth adding an ANN index if the stress benchmark in `evals/`
+//! actually shows it's needed.
 
 use crate::models::{RetrievedSource, WorryOutcome};
 use rusqlite::{params, Connection, Row};
@@ -55,8 +55,8 @@ fn candidate_from_row(row: &Row) -> rusqlite::Result<Candidate> {
 
 /// Retrieve relevant chunks for `query_embedding`. Applies modest recency
 /// weighting on top of semantic similarity, deduplicates chunks from the
-/// same entry+source_kind, and — critically — expands any matched worry
-/// chunk with its full linked outcome history (never just the original
+/// same entry+source_kind, and expands any matched worry chunk with its
+/// full linked outcome history (never just the original
 /// fear; this is essential).
 pub fn retrieve(
     conn: &Connection,
@@ -133,8 +133,8 @@ fn recency_weight(created_at: &str, now: time::OffsetDateTime) -> f32 {
         return 0.0;
     };
     let days = (now - created).whole_days().max(0) as f32;
-    // Gentle decay: ~1.0 today, ~0.5 at 90 days, floor near 0.1. Modest by
-    // design — never assume "newest is most relevant".
+    // Gentle decay: ~1.0 today, ~0.5 at 90 days, floor near 0.1. Deliberately
+    // modest; never assume "newest is most relevant".
     (1.0 - (days / 180.0)).clamp(0.1, 1.0)
 }
 
