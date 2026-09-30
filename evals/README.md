@@ -1,13 +1,12 @@
 # Evaluating retrieval and safety behavior
 
-Labeled fixtures, not an automated harness against a live model — the
-model-dependent evals below need a real Ollama instance and I haven't run
-them yet myself. What's actually tested: the fixtures, the retrieval
-SQL/ranking logic, and the deterministic safety pre-filter, all without
-needing a model (`src-tauri/tests/retrieval_tests.rs` and
-`src-tauri/tests/safety_tests.rs`, both passing). Anything that needs a
-real chat/embedding model is written up below as steps to run yourself
-plus a rubric for judging the output — not as a result I'm claiming.
+Two layers. **Automated, no model needed** (runs in CI): the retrieval
+SQL/ranking logic, indexing queue, prompt assembly, and the deterministic
+safety pre-filter (`src-tauri/tests/*.rs`). **Automated, live model**:
+`src-tauri/examples/retrieval_eval.rs` scores retrieval against a real
+local embedding model. **Manual**: judging the generated responses
+themselves (honesty about bad outcomes, injection resistance), which
+still needs a human reading transcripts; steps and a rubric are below.
 
 ## Files
 
@@ -26,7 +25,36 @@ plus a rubric for judging the output — not as a result I'm claiming.
   urgent-distress pre-filter, run automatically by
   `src-tauri/tests/safety_tests.rs` (passing as of this build).
 
-## Running the retrieval eval yourself
+## Automated retrieval eval
+
+```
+ollama pull nomic-embed-text          # or any local embedding model
+cd src-tauri
+cargo run --example retrieval_eval -- --embed-model nomic-embed-text
+```
+
+What it does:
+
+1. Seeds `demo_entries.json` into a temporary vault and indexes it through
+   `indexing::worker::process_next_job`, the same code path the app uses.
+2. For each query in `eval_queries.json`, compares:
+   - **Baseline**: naive top-6, raw cosine over every chunk *including*
+     the memory-disabled entry, with no threshold, recency, dedupe or
+     outcome expansion.
+   - **Anchor**: `rag::retrieval::retrieve` as shipped.
+3. Scores each against `expectedEntryIds` and `mustIncludeLinkedOutcome`.
+   `no_match` passes only if nothing comes back, and any query fails if
+   memory-disabled `e17` is returned.
+4. Prints a Markdown table and writes it to
+   `evals/results/retrieval-<model>-<date>.md`, including model digest,
+   machine, indexing time, and each query's top score, which is useful for
+   tuning `MIN_SIMILARITY` in `rag/retrieval.rs`.
+
+Keep reports with bad results too; don't edit them. The harness has only
+been exercised against a stub server so far, so no live-model report is
+checked in yet.
+
+## Judging generated responses (manual)
 
 Needs Ollama running locally with a chat + embedding model pulled (see
 the main README's setup section).
@@ -36,7 +64,7 @@ the main README's setup section).
 3. Wait for indexing (entry cards show "Ready for reflection" — small fixture set, well under a minute on normal hardware).
 4. For each query in `eval_queries.json`, run it three ways and note what comes back:
    - **(A) No retrieval** — same model, same query, "Use my journal history" off in Reflect.
-   - **(B) Plain top-k** — not a separate mode in this build, approximate by reading `retrieve()` in `src-tauri/src/rag/retrieval.rs` with the eligibility/version filters mentally removed — i.e. raw cosine ranking over all chunks.
+   - **(B) Plain top-k** — see the automated harness above for the retrieval side of this comparison.
    - **(C) Anchor retrieval** — "Use my journal history" on, as shipped: eligibility/version filtering plus linked-outcome expansion.
 5. Score each response against the query's `expectedEntryIds`,
    `mustIncludeLinkedOutcome`, and `notes`. Specifically worth checking:

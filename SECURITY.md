@@ -23,6 +23,16 @@ can only call the narrow `#[tauri::command]` functions listed in
 own input in Rust — the frontend's Zod checks (`src/lib/schemas.ts`) are
 a UX convenience, not a trust boundary.
 
+The renderer also never supplies a filesystem path. Export, import,
+Markdown export, backup and restore each open their native file dialog
+from Rust (`src-tauri/src/commands/data.rs::native_pick`) and act only on
+the location the user picked there; the capability file doesn't grant the
+webview `dialog:allow-open` / `dialog:allow-save` at all. So a
+compromised renderer can't point a write or read at an arbitrary path.
+Conversation history sent with a reflection is role-checked and trimmed
+in Rust (`rag::generation::trim_history`), so the renderer can't inject
+a `system` turn.
+
 **SQL injection.** Everything goes through `rusqlite` parameter binding
 (`src-tauri/src/db/repo.rs`). No string-concatenated SQL anywhere.
 
@@ -106,6 +116,12 @@ classifier that routes evident imminent-danger statements to a bundled
 supportive response instead of normal reflection. Read that file's
 module doc before relying on it for anything. Short version:
 
+- Two tiers. **Imminent** statements skip the model entirely and get a
+  bundled crisis response. **Elevated** statements (e.g. self-harm
+  language without evident immediacy) still get a normal reflection, with
+  an added system instruction to check in on safety first, plus a bundled
+  support note attached outside the model's output. That note is still
+  shown if the model call fails.
 - It's biased toward **false positives** (flagging something merely
   dramatic) over **false negatives** (missing a real disclosure) — the
   cost of the former is low, the cost of the latter isn't.

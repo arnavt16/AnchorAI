@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "note": "Labeled queries against evals/fixtures/demo_entries.json. Run manually or via the (future) eval harness described in evals/README.md — requires a running local Ollama with the configured models, which this repository does not assume is present. expectedEntryIds reference each fixture entry's localId.",
+  "note": "Labeled queries against evals/fixtures/demo_entries.json. Scored automatically by src-tauri/examples/retrieval_eval.rs (retrieval) and by hand for generated responses — see evals/README.md. Both need a running local Ollama. expectedEntryIds reference each fixture entry's localId.",
   "queries": [
     {
       "id": "q1_paraphrase_interview",

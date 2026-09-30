@@ -1,5 +1,7 @@
 # Anchor
 
+[![CI](https://github.com/arnavt16/AnchorAI/actions/workflows/ci.yml/badge.svg)](https://github.com/arnavt16/AnchorAI/actions/workflows/ci.yml)
+
 Anchor is a local-first desktop journal. The feature I actually built this
 project around is **Worry Loop**: it connects a worry you're having right
 now to relevant past worries, the outcomes you recorded for them, and the
@@ -37,9 +39,10 @@ actual engineering work.
 ## What's here right now
 
 A working desktop shell, full journal + Worry Loop CRUD, a real local
-embedding/RAG pipeline against Ollama, structured reflection with source
-citations, and the safety/privacy plumbing (consent, memory exclusion,
-urgent-distress routing, session-only chat). Packaging a signed
+embedding/RAG pipeline against Ollama, multi-turn reflection with source
+citations, a one-command retrieval eval harness, CI on Linux and macOS,
+and the safety/privacy plumbing (consent, memory exclusion, two-tier
+distress routing, session-only chat, Rust-owned file dialogs). Packaging a signed
 installer, a proper usability study, and a few convenience features are
 **not** done yet — see [Project status](#project-status).
 
@@ -69,9 +72,10 @@ Anchor as a plain journal with no Ollama at all.
 
 ### 2. Get Anchor running
 
-I developed and smoke-tested this on Linux — it hasn't been packaged or
-run on macOS yet (see [Project status](#project-status)). To build it
-yourself on a Mac:
+I originally developed and smoke-tested this on Linux. It now builds and
+passes its full test suite on macOS 15 (Apple Silicon), and CI runs the
+tests on both Ubuntu and macOS. There's no signed installer yet (see
+[Project status](#project-status)). To build it yourself on a Mac:
 
 1. Install [Node.js](https://nodejs.org) (v20+) and [Rust](https://www.rust-lang.org/tools/install) (`curl https://sh.rustup.rs -sSf | sh`).
 2. Install Xcode Command Line Tools: `xcode-select --install`.
@@ -110,7 +114,13 @@ npm run build                # type-check + production frontend bundle
 npm test                     # Vitest — frontend unit tests
 cd src-tauri && cargo test   # Rust unit + integration tests
 cd src-tauri && cargo check  # fast Rust type-check
+cd src-tauri && cargo run --example retrieval_eval -- --embed-model nomic-embed-text
+                             # retrieval eval against a live local Ollama
 ```
+
+CI (`.github/workflows/ci.yml`) runs the frontend build + Vitest on
+Ubuntu and `cargo test --all-targets` on Ubuntu and macOS for every push
+and pull request.
 
 Copy `.env.example` to `.env` if you want to override dev defaults
 (Ollama host, log level). No secrets or API keys anywhere in this
@@ -133,7 +143,9 @@ src-tauri/            Rust backend
   src/safety/            urgent-distress local pre-filter + bundled crisis response
   src/backup/            SQLite online-backup-API based backup/restore
   tests/                 Rust integration tests (temp SQLite DBs, no network)
+  examples/retrieval_eval.rs   live-model retrieval eval harness
 evals/fixtures/        fictional demo entries, labeled eval queries, safety test fixtures
+evals/results/         eval reports written by the harness
 tests/unit/            Vitest frontend tests
 ```
 
@@ -149,32 +161,82 @@ tests/unit/            Vitest frontend tests
   work correctly — see `src-tauri/src/indexing/worker.rs` and
   `docs/spec.md`. `src-tauri/tests/retrieval_tests.rs` is basically the
   executable spec for this.
-- The urgent-distress path (`src-tauri/src/safety/mod.rs`) is a keyword
+- The distress path (`src-tauri/src/safety/mod.rs`) is a keyword
   pre-filter, not a validated clinical triage system — I mean that
-  literally, read that file's doc comment before touching it. Known
-  false-positive/negative cases are in `evals/fixtures/safety_fixtures.json`.
+  literally, read that file's doc comment before touching it. It has two
+  tiers: **imminent** skips the model entirely and returns a bundled
+  crisis response; **elevated** still runs normal reflection, but adds a
+  system instruction to check in on safety first and attaches a bundled
+  (not model-written) support note, which survives even if the model call
+  fails. Known false-positive/negative cases are in
+  `evals/fixtures/safety_fixtures.json`.
+- Reflect is multi-turn but still session-only: the frontend keeps the
+  conversation in memory and sends recent turns with each message. Rust
+  role-checks and trims them (last 8 turns, character-capped) before they
+  reach the model, and the previous user turn is folded into the
+  retrieval query so follow-ups like "what about the second one?" still
+  find the right history.
+- The webview can't choose file paths. Export, import, backup and restore
+  open their native dialogs from Rust, and the capability file no longer
+  grants the renderer dialog open/save permissions at all.
 
 ## Evaluating retrieval quality
 
-`evals/fixtures/demo_entries.json` and `evals/fixtures/eval_queries.json`
-are a small labeled fixture set for checking retrieval quality by hand
-(see `evals/README.md`). The full three-way comparison in `docs/spec.md`
-(no-retrieval vs. plain top-k vs. Anchor's version-aware retrieval) needs
-a running local Ollama with models pulled — the fixtures and harness are
-ready, I just haven't run the live-model pass myself yet.
+`evals/fixtures/demo_entries.json` (20 fictional entries) and
+`evals/fixtures/eval_queries.json` (8 labeled queries) drive an automated
+retrieval eval:
+
+```
+ollama pull nomic-embed-text
+cd src-tauri && cargo run --example retrieval_eval -- --embed-model nomic-embed-text
+```
+
+It seeds the fixtures into a throwaway vault, indexes them through the
+app's real indexing code, and scores each query two ways: a naive top-k
+baseline (raw cosine over everything, including the memory-disabled
+entry) versus Anchor's retrieval as shipped (eligibility + version
+filters, threshold, recency, linked-outcome expansion). It checks
+recall, linked-outcome coverage, the no-match case, and that private
+entries never leak, then writes a Markdown report to `evals/results/`.
+The harness has been verified end to end against a stub server; I
+haven't published a live-model run yet. Scoring generated responses
+(not just retrieval) still needs a human read of transcripts; see
+`evals/README.md`.
 
 ## Project status
 
 Done: journal entries with search and tagging, full Worry Loop tracking
 (worries, recorded outcomes, small steps), a local embedding/RAG pipeline
-against Ollama with cited reflection responses and a natural-language
-fallback when structured output isn't available, the urgent-distress
-safety pre-filter, consent/memory controls, backup/export, and vault
-erasure. 20 passing Rust integration tests and 17 passing frontend unit
-tests (`cargo test` / `npm test`).
+against Ollama with cited, multi-turn reflection and a natural-language
+fallback when structured output isn't available, the two-tier distress
+pre-filter, consent/memory controls, backup/export, vault erasure, an
+automated retrieval eval harness, and CI. 34 passing Rust tests and 24
+passing frontend tests (`cargo test` / `npm test`).
 
 Not done yet: a signed/notarized macOS installer, database-level
 encryption at rest, in-app model download, a proper usability study, and
-running the retrieval eval fixtures against a live model (the harness is
-ready — see `evals/README.md`). Developed and smoke-tested on Linux only
-so far.
+a published live-model eval report (run the harness above to produce
+one).
+
+### Recent changes
+
+- **Fixed:** deleting a worry outcome left its entry stuck as "pending"
+  with no indexing job queued, so it silently dropped out of reflection.
+  It's now re-queued like every other edit.
+- **Fixed:** indexing retry backoff was recorded but never honored, so a
+  failing job was retried every 3 seconds. The worker now waits out
+  `next_attempt_at`, and a job in backoff no longer blocks others.
+- **Fixed:** retrieval used the time a chunk was *indexed* for recency
+  scoring and the date shown in the sources drawer, so rebuilding the
+  index made every entry look new. It now uses when the entry was written.
+- **Fixed:** two overlapping reflections could resume indexing while one
+  was still running. Pausing is now reference-counted, separately from
+  the manual pause in Settings.
+- **New:** multi-turn Reflect, meaning follow-up questions keep their
+  context.
+- **New:** the "elevated" distress tier is now acted on, not just
+  detected (see design notes above).
+- **Hardened:** file dialogs moved into Rust, so the renderer never
+  supplies a filesystem path.
+- **New:** `retrieval_eval` harness, plus GitHub Actions CI on Ubuntu and
+  macOS.
