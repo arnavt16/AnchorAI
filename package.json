@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Anchor — a local-first desktop journal with on-device reflection (Worry Loop).",
+  "license": "UNLICENSED",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

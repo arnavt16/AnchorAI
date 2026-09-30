@@ -240,3 +240,11 @@ one).
   supplies a filesystem path.
 - **New:** `retrieval_eval` harness, plus GitHub Actions CI on Ubuntu and
   macOS.
+
+## License
+
+Copyright © 2026 Arnav Thorat. All rights reserved. The source is public so
+you can read it and evaluate the project, and you may build and run it for
+personal, non-commercial use. Redistribution, modified or commercial use, or
+presenting this work as your own is not permitted without written permission.
+See [LICENSE](./LICENSE).
