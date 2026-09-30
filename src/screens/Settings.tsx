@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { save, open, confirm as confirmDialog } from "@tauri-apps/plugin-dialog";
+import { confirm as confirmDialog } from "@tauri-apps/plugin-dialog";
 import { useAppState } from "@/lib/state";
 import { dataApi, entriesApi, systemApi, type JournalEntry } from "@/lib/ipc";
 import { Button, Card, CardContent, Switch, Badge, Input } from "@/components/ui";
@@ -29,19 +29,19 @@ export function SettingsScreen() {
   }
 
   async function handleExportJson() {
-    const json = await dataApi.exportJson();
-    const path = await save({ defaultPath: "anchor-export.json", filters: [{ name: "JSON", extensions: ["json"] }] });
-    if (!path) return;
-    await dataApi.writeTextExport(path as string, json);
-    pushToast("Exported to " + path);
+    try {
+      const path = await dataApi.exportJsonToFile();
+      if (path) pushToast("Exported to " + path);
+    } catch (err: any) {
+      pushToast(err?.message ?? "Export failed.", "error");
+    }
   }
 
   async function handleImportJson() {
-    const path = await open({ filters: [{ name: "Anchor export", extensions: ["json"] }] });
-    if (!path || Array.isArray(path)) return;
     setBusy("import");
     try {
-      const json = await dataApi.readTextImport(path as string);
+      const json = await dataApi.pickImportFile();
+      if (!json) return;
       const preview = await dataApi.previewImport(json);
       const ok = await confirmDialog(
         `This will add ${preview.entryCount} entr${preview.entryCount === 1 ? "y" : "ies"}, ${preview.worryCount} worr${
@@ -61,40 +61,37 @@ export function SettingsScreen() {
   }
 
   async function handleExportMarkdown() {
-    const dir = await open({ directory: true });
-    if (!dir || Array.isArray(dir)) return;
     setBusy("markdown");
     try {
-      const n = await dataApi.exportMarkdown(dir as string);
-      pushToast(`Exported ${n} Markdown file${n === 1 ? "" : "s"}.`);
+      const n = await dataApi.exportMarkdown();
+      if (n !== null) pushToast(`Exported ${n} Markdown file${n === 1 ? "" : "s"}.`);
+    } catch (err: any) {
+      pushToast(err?.message ?? "Export failed.", "error");
     } finally {
       setBusy(null);
     }
   }
 
   async function handleBackup() {
-    const path = await save({ defaultPath: "anchor-backup.sqlite", filters: [{ name: "Anchor backup", extensions: ["sqlite"] }] });
-    if (!path) return;
     setBusy("backup");
     try {
-      await dataApi.backup(path);
-      pushToast("Backup saved.");
+      if (await dataApi.backup()) pushToast("Backup saved.");
+    } catch (err: any) {
+      pushToast(err?.message ?? "Backup failed.", "error");
     } finally {
       setBusy(null);
     }
   }
 
   async function handleRestore() {
-    const path = await open({ filters: [{ name: "Anchor backup", extensions: ["sqlite"] }] });
-    if (!path || Array.isArray(path)) return;
     const ok = await confirmDialog(
-      "This replaces everything currently in this vault with the backup you're restoring. A safety copy of the current vault is made first.",
+      "Restoring replaces everything currently in this vault with the backup you choose next. A safety copy of the current vault is made first.",
       { title: "Restore vault?", kind: "warning" }
     );
     if (!ok) return;
     setBusy("restore");
     try {
-      await dataApi.restore(path as string);
+      if (!(await dataApi.restore())) return;
       pushToast("Vault restored.");
       loadEntries();
       refreshSettings();

@@ -3,24 +3,47 @@
 //! Single-threaded by design ("process one generation at a time"): jobs are
 //! claimed and processed sequentially from a tokio interval loop, not a
 //! thread pool, so a constrained machine never runs two embedding requests
-//! at once. Reflection can request a pause via `IndexingControl` so it gets
+//! at once. Reflection holds a `ReflectionGuard` for its duration so it gets
 //! the model's full attention while the user is actively waiting on it.
 
 use crate::db::repo;
-use crate::db::{new_id, now_iso, VaultManager};
+use crate::db::{new_id, now_iso, Pool, VaultManager};
 use crate::indexing::chunker::{self, ChunkInput};
 use crate::ollama::OllamaClient;
 use rusqlite::{params, Connection};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use tauri::Manager;
 
+/// Two independent reasons to hold off indexing: a manual pause from
+/// Settings, and a count of reflections currently in flight. A counter
+/// rather than a flag so two overlapping reflections can't have the first
+/// one to finish resume indexing while the second is still waiting.
+#[derive(Default)]
 pub struct IndexingControl {
     pub paused: AtomicBool,
+    active_reflections: AtomicUsize,
 }
 
-impl Default for IndexingControl {
-    fn default() -> Self {
-        Self { paused: AtomicBool::new(false) }
+impl IndexingControl {
+    pub fn should_skip(&self) -> bool {
+        self.paused.load(Ordering::SeqCst) || self.active_reflections.load(Ordering::SeqCst) > 0
+    }
+
+    /// Hold indexing off until the returned guard is dropped (including on
+    /// early return or error).
+    pub fn begin_reflection(&self) -> ReflectionGuard<'_> {
+        self.active_reflections.fetch_add(1, Ordering::SeqCst);
+        ReflectionGuard { control: self }
+    }
+}
+
+pub struct ReflectionGuard<'a> {
+    control: &'a IndexingControl,
+}
+
+impl Drop for ReflectionGuard<'_> {
+    fn drop(&mut self) {
+        self.control.active_reflections.fetch_sub(1, Ordering::SeqCst);
     }
 }
 
@@ -34,11 +57,18 @@ pub fn spawn_worker_loop(app: tauri::AppHandle) {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(3));
         loop {
             interval.tick().await;
-            let control = app.state::<IndexingControl>();
-            if control.paused.load(Ordering::Relaxed) {
+            if app.state::<IndexingControl>().should_skip() {
                 continue;
             }
-            if let Err(e) = process_one_pending(&app).await {
+            let vault = app.state::<VaultManager>().current();
+            let ollama = match OllamaClient::new(None) {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::warn!(error = %e, "could not build Ollama client");
+                    continue;
+                }
+            };
+            if let Err(e) = process_next_job(&vault.pool, &ollama).await {
                 tracing::warn!(error = %e, "indexing tick failed");
             }
         }
@@ -81,49 +111,77 @@ pub fn enqueue_if_eligible(conn: &Connection, entry_id: &str) -> anyhow::Result<
     Ok(())
 }
 
-async fn process_one_pending(app: &tauri::AppHandle) -> anyhow::Result<()> {
-    let vault_mgr = app.state::<VaultManager>();
-    let vault = vault_mgr.current();
+pub struct ClaimedJob {
+    pub id: String,
+    pub entry_id: String,
+    pub requested_aggregate_version: i64,
+    pub requested_embedding_space_version: i64,
+    pub vault_generation: i64,
+}
 
-    let (job_id, entry_id, req_agg, req_space, vault_gen) = {
-        let conn = vault.pool.get()?;
-        let row = conn
-            .query_row(
-                "SELECT id, entry_id, requested_aggregate_version, requested_embedding_space_version, vault_generation
-                 FROM indexing_jobs WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1",
-                [],
-                |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?, r.get::<_, i64>(3)?, r.get::<_, i64>(4)?)),
-            )
-            .optional_or_none();
-        match row {
-            Some(r) => r,
-            None => return Ok(()),
-        }
+/// Oldest pending job whose retry backoff (`next_attempt_at`) has elapsed.
+/// `julianday()` compares the timestamps as instants rather than strings,
+/// since RFC3339 fractional seconds vary in length.
+pub fn next_due_job(conn: &Connection) -> anyhow::Result<Option<ClaimedJob>> {
+    Ok(conn
+        .query_row(
+            "SELECT id, entry_id, requested_aggregate_version, requested_embedding_space_version, vault_generation
+             FROM indexing_jobs
+             WHERE status = 'pending'
+               AND (next_attempt_at IS NULL OR julianday(next_attempt_at) <= julianday('now'))
+             ORDER BY created_at ASC LIMIT 1",
+            [],
+            |r| {
+                Ok(ClaimedJob {
+                    id: r.get(0)?,
+                    entry_id: r.get(1)?,
+                    requested_aggregate_version: r.get(2)?,
+                    requested_embedding_space_version: r.get(3)?,
+                    vault_generation: r.get(4)?,
+                })
+            },
+        )
+        .optional_or_none())
+}
+
+/// Claim and process one due job. Returns `Ok(false)` when nothing was due.
+/// Takes a pool rather than an `AppHandle` so the eval harness
+/// (`examples/retrieval_eval.rs`) can drive the exact same indexing path.
+pub async fn process_next_job(pool: &Pool, ollama: &OllamaClient) -> anyhow::Result<bool> {
+    let job = { let conn = pool.get()?; next_due_job(&conn)? };
+    let Some(ClaimedJob {
+        id: job_id,
+        entry_id,
+        requested_aggregate_version: req_agg,
+        requested_embedding_space_version: req_space,
+        vault_generation: vault_gen,
+    }) = job
+    else {
+        return Ok(false);
     };
 
     {
-        let conn = vault.pool.get()?;
+        let conn = pool.get()?;
         conn.execute("UPDATE indexing_jobs SET status = 'processing', updated_at = ?1 WHERE id = ?2", params![now_iso(), job_id])?;
     }
 
-    let settings = { let conn = vault.pool.get()?; repo::get_settings(&conn)? };
+    let settings = { let conn = pool.get()?; repo::get_settings(&conn)? };
     let (Some(embedding_model), Some(_dim)) = (settings.embedding_model.clone(), settings.embedding_dimension) else {
-        fail_job(&vault.pool, &job_id, &entry_id, "model_missing")?;
-        return Ok(());
+        fail_job(pool, &job_id, &entry_id, "model_missing")?;
+        return Ok(true);
     };
 
-    let ollama = OllamaClient::new(None)?;
-    let entry = { let conn = vault.pool.get()?; repo::get_entry(&conn, &entry_id)? };
+    let entry = { let conn = pool.get()?; repo::get_entry(&conn, &entry_id)? };
     let Some(entry) = entry else {
         // Source gone: discard stale work silently, not an error.
-        let conn = vault.pool.get()?;
+        let conn = pool.get()?;
         conn.execute("DELETE FROM indexing_jobs WHERE id = ?1", [&job_id])?;
-        return Ok(());
+        return Ok(true);
     };
 
     let mut inputs: Vec<ChunkInput> = chunker::chunks_for_entry_body(&entry.body);
     {
-        let conn = vault.pool.get()?;
+        let conn = pool.get()?;
         let worry_id: Option<String> = conn
             .query_row("SELECT id FROM worries WHERE entry_id = ?1", [&entry_id], |r| r.get(0))
             .optional_or_none();
@@ -145,15 +203,15 @@ async fn process_one_pending(app: &tauri::AppHandle) -> anyhow::Result<()> {
         match ollama.embed(&embedding_model, &input.content).await {
             Ok(vec) => {
                 if vec.is_empty() || vec.iter().any(|x| !x.is_finite()) || vec.iter().all(|x| *x == 0.0) {
-                    fail_job(&vault.pool, &job_id, &entry_id, "embedding_invalid")?;
-                    return Ok(());
+                    fail_job(pool, &job_id, &entry_id, "embedding_invalid")?;
+                    return Ok(true);
                 }
                 embedded.push((input, vec));
             }
             Err(e) => {
                 tracing::warn!(error = %e, "embedding request failed");
-                retry_or_fail(&vault.pool, &job_id, &entry_id)?;
-                return Ok(());
+                retry_or_fail(pool, &job_id, &entry_id)?;
+                return Ok(true);
             }
         }
     }
@@ -161,7 +219,7 @@ async fn process_one_pending(app: &tauri::AppHandle) -> anyhow::Result<()> {
     // Recheck before commit: source still exists, aggregate/embedding-space
     // snapshot still matches what we started from, consent still granted,
     // vault generation unchanged.
-    let conn = vault.pool.get()?;
+    let conn = pool.get()?;
     let current_entry = repo::get_entry(&conn, &entry_id)?;
     let current_settings = repo::get_settings(&conn)?;
     let stale = match &current_entry {
@@ -177,7 +235,7 @@ async fn process_one_pending(app: &tauri::AppHandle) -> anyhow::Result<()> {
     if stale {
         conn.execute("DELETE FROM indexing_jobs WHERE id = ?1", [&job_id])?;
         tracing::info!(entry_id = %entry_id, "discarded stale indexing job");
-        return Ok(());
+        return Ok(true);
     }
 
     let tx = conn.unchecked_transaction()?;
@@ -203,7 +261,7 @@ async fn process_one_pending(app: &tauri::AppHandle) -> anyhow::Result<()> {
     tx.execute("UPDATE indexing_jobs SET status = 'completed', updated_at = ?1 WHERE id = ?2", params![now_iso(), job_id])?;
     tx.commit()?;
     tracing::info!(entry_id = %entry_id, chunks = embedded.len(), "indexing complete");
-    Ok(())
+    Ok(true)
 }
 
 fn fail_job(pool: &crate::db::Pool, job_id: &str, entry_id: &str, code: &str) -> anyhow::Result<()> {

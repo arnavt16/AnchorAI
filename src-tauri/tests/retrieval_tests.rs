@@ -105,3 +105,14 @@ fn stale_aggregate_version_excluded_after_edit() {
     let results = retrieve(&conn, &[1.0, 0.0, 0.0], 1, 1, None).unwrap();
     assert!(results.is_empty(), "a chunk whose aggregate_version doesn't match the entry's current version must be excluded as stale");
 }
+
+#[test]
+fn source_date_is_when_the_entry_was_written_not_when_it_was_indexed() {
+    let (_dir, conn) = setup();
+    let entry_id = make_entry(&conn, true);
+    conn.execute("UPDATE journal_entries SET created_at = '2025-01-15T09:00:00Z' WHERE id = ?1", [&entry_id]).unwrap();
+    insert_chunk(&conn, "c1", &entry_id, &[1.0, 0.0, 0.0], 1, 1, 1); // chunk created_at 2026-06-01
+
+    let results = retrieve(&conn, &[1.0, 0.0, 0.0], 1, 1, None).unwrap();
+    assert_eq!(results[0].date, "2025-01-15T09:00:00Z");
+}

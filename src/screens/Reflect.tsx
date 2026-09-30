@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Send, Library, Save } from "lucide-react";
 import { useAppState } from "@/lib/state";
-import { reflectApi, type RetrievedSource, type ValidatedReflection } from "@/lib/ipc";
+import { reflectApi, type ChatTurn, type RetrievedSource, type ValidatedReflection } from "@/lib/ipc";
 import { Button, Card, CardContent, Textarea, Switch, Badge, Spinner } from "@/components/ui";
 import { formatDate, truncate } from "@/lib/utils";
 
@@ -10,6 +10,15 @@ interface Turn {
   text: string;
   sources?: RetrievedSource[];
   urgent?: boolean;
+  supportNote?: string | null;
+  /** Error placeholder, not a model reply: kept out of the history sent back. */
+  failed?: boolean;
+}
+
+/** The conversation so far, in the shape the reflect command expects. The
+ * Rust side trims it to the most recent turns. */
+export function toHistory(turns: Turn[]): ChatTurn[] {
+  return turns.filter((t) => !t.failed).map((t) => ({ role: t.role, content: t.text }));
 }
 
 const INTENTIONS: { value: string; label: string }[] = [
@@ -37,6 +46,7 @@ export function ReflectScreen({ seedMessage, entryId }: { seedMessage?: string; 
   async function send() {
     if (!message.trim() || sending) return;
     const userTurn: Turn = { role: "user", text: message };
+    const history = toHistory(turns);
     setTurns((t) => [...t, userTurn]);
     setSending(true);
     const sentMessage = message;
@@ -47,14 +57,24 @@ export function ReflectScreen({ seedMessage, entryId }: { seedMessage?: string; 
         intention,
         useMemory: useMemory && localAiEnabled,
         excludeEntryId: entryId,
+        history,
       });
       const text = result.sections.map((s) => s.text).join("\n\n");
       setTurns((t) => [
         ...t,
-        { role: "assistant", text: text + (result.followUpQuestion ? `\n\n${result.followUpQuestion}` : ""), sources: result.sources, urgent: result.urgentPathTriggered },
+        {
+          role: "assistant",
+          text: text + (result.followUpQuestion ? `\n\n${result.followUpQuestion}` : ""),
+          sources: result.sources,
+          urgent: result.urgentPathTriggered,
+          supportNote: result.supportNote,
+        },
       ]);
     } catch (err: any) {
-      setTurns((t) => [...t, { role: "assistant", text: "The local model runtime didn't respond. Your message wasn't lost — set up local AI in Setup, or try again." }]);
+      setTurns((t) => [
+        ...t,
+        { role: "assistant", failed: true, text: "The local model runtime didn't respond. Your message wasn't lost — set up local AI in Setup, or try again." },
+      ]);
     } finally {
       setSending(false);
       setIntention(undefined);
@@ -100,6 +120,11 @@ export function ReflectScreen({ seedMessage, entryId }: { seedMessage?: string; 
           <div className="mx-auto flex max-w-xl flex-col gap-4">
             {turns.map((t, i) => (
               <div key={i} className={t.role === "user" ? "self-end max-w-[85%]" : "self-start max-w-[90%]"}>
+                {t.supportNote && (
+                  <div role="note" className="mb-2 rounded-2xl border border-rust-500/40 bg-rust-500/10 px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">
+                    {t.supportNote}
+                  </div>
+                )}
                 <div
                   className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
                     t.role === "user"

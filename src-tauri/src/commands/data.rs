@@ -7,7 +7,53 @@ use crate::db::{app_data_dir, now_iso, open_vault, VaultManager, VaultMode, Vaul
 use crate::error::{AnchorError, AnchorResult, SafeErrorCode};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use tauri::{AppHandle, State};
+use tauri_plugin_dialog::{DialogExt, FilePath};
+
+// ---------- Native file dialogs ----------
+//
+// Every file this module reads or writes is chosen through a native dialog
+// opened *here*, in Rust. The renderer never supplies a filesystem path,
+// so a compromised webview can't point an export, backup or restore at an
+// arbitrary location (the capability file doesn't grant it the dialog
+// open/save permissions either).
+
+enum PickKind {
+    SaveFile,
+    OpenFile,
+    OpenFolder,
+}
+
+async fn native_pick(
+    app: &AppHandle,
+    kind: PickKind,
+    default_name: Option<&str>,
+    filter: Option<(&str, &[&str])>,
+) -> AnchorResult<Option<PathBuf>> {
+    let (tx, rx) = tokio::sync::oneshot::channel::<Option<FilePath>>();
+    let mut builder = app.dialog().file();
+    if let Some(name) = default_name {
+        builder = builder.set_file_name(name);
+    }
+    if let Some((label, extensions)) = filter {
+        builder = builder.add_filter(label, extensions);
+    }
+    let done = move |picked: Option<FilePath>| {
+        let _ = tx.send(picked);
+    };
+    match kind {
+        PickKind::SaveFile => builder.save_file(done),
+        PickKind::OpenFile => builder.pick_file(done),
+        PickKind::OpenFolder => builder.pick_folder(done),
+    }
+    let picked = rx
+        .await
+        .map_err(|_| AnchorError::new(SafeErrorCode::Cancelled, "The file dialog closed unexpectedly."))?;
+    picked
+        .map(|p| p.into_path().map_err(|_| AnchorError::new(SafeErrorCode::InvalidInput, "That location isn't a local file path.")))
+        .transpose()
+}
 
 // ---------- Export / Import JSON ----------
 
@@ -75,11 +121,8 @@ pub struct VaultExport {
 /// Portable export. Excludes transient jobs, embeddings, raw session chats
 /// (none are ever persisted, since chat is session-only by design), absolute
 /// machine paths, and consent state.
-#[tauri::command]
-pub fn export_vault_json(vault: State<VaultManager>) -> AnchorResult<String> {
-    let v = vault.current();
-    let conn = v.pool.get()?;
-    let entries = repo::list_entries(&conn, None, 100000)?;
+pub fn build_export_json(conn: &Connection) -> AnchorResult<String> {
+    let entries = repo::list_entries(conn, None, 100000)?;
     let mut out = Vec::with_capacity(entries.len());
     for e in entries {
         let worry_row: Option<String> = conn
@@ -87,9 +130,9 @@ pub fn export_vault_json(vault: State<VaultManager>) -> AnchorResult<String> {
             .ok();
         let worry = match worry_row {
             Some(wid) => {
-                let w = repo::get_worry(&conn, &wid)?;
+                let w = repo::get_worry(conn, &wid)?;
                 w.map(|w| -> AnchorResult<ExportWorry> {
-                    let outcomes = repo::list_outcomes(&conn, &w.id)?
+                    let outcomes = repo::list_outcomes(conn, &w.id)?
                         .into_iter()
                         .map(|o| ExportOutcome {
                             outcome_text: o.outcome_text,
@@ -98,7 +141,7 @@ pub fn export_vault_json(vault: State<VaultManager>) -> AnchorResult<String> {
                             recorded_at: Some(o.recorded_at),
                         })
                         .collect();
-                    let steps = repo::list_steps_for_worry(&conn, &w.id)?
+                    let steps = repo::list_steps_for_worry(conn, &w.id)?
                         .into_iter()
                         .map(|s| ExportStep { action_text: s.action_text, feedback: s.feedback, feedback_note: s.feedback_note })
                         .collect();
@@ -122,6 +165,22 @@ pub fn export_vault_json(vault: State<VaultManager>) -> AnchorResult<String> {
     }
     let export = VaultExport { schema_version: 1, exported_at: now_iso(), entries: out };
     serde_json::to_string_pretty(&export).map_err(|_| AnchorError::new(SafeErrorCode::Unexpected, "Could not serialize export."))
+}
+
+/// Asks where to save, then writes the JSON export there. Returns the
+/// chosen path for the confirmation toast, or `None` if cancelled.
+#[tauri::command]
+pub async fn export_vault_json_file(app: AppHandle, vault: State<'_, VaultManager>) -> AnchorResult<Option<String>> {
+    let Some(path) = native_pick(&app, PickKind::SaveFile, Some("anchor-export.json"), Some(("JSON", &["json"]))).await? else {
+        return Ok(None);
+    };
+    let json = {
+        let v = vault.current();
+        let conn = v.pool.get()?;
+        build_export_json(&conn)?
+    };
+    std::fs::write(&path, json).map_err(|_| AnchorError::new(SafeErrorCode::Unexpected, "Could not write the export file."))?;
+    Ok(Some(path.display().to_string()))
 }
 
 #[derive(Debug, Serialize)]
@@ -175,7 +234,15 @@ pub fn import_vault_json(vault: State<VaultManager>, json: String) -> AnchorResu
     let (parsed, preview) = preview_import(&json)?;
     let v = vault.current();
     let mut conn = v.pool.get()?;
+    import_entries(&mut conn, parsed)?;
+    Ok(preview)
+}
+
+/// Transactional import shared by the command, demo seeding, and the eval
+/// harness. Returns the new entry ids in the same order as `parsed.entries`.
+pub fn import_entries(conn: &mut Connection, parsed: VaultExport) -> AnchorResult<Vec<String>> {
     let tx = conn.transaction().map_err(AnchorError::from)?;
+    let mut ids = Vec::with_capacity(parsed.entries.len());
     for e in parsed.entries {
         let entry = repo::create_entry(
             &tx,
@@ -188,6 +255,7 @@ pub fn import_vault_json(vault: State<VaultManager>, json: String) -> AnchorResu
                 origin: "imported".into(),
             },
         )?;
+        ids.push(entry.id.clone());
         if let Some(created_at) = e.created_at {
             tx.execute("UPDATE journal_entries SET created_at = ?1 WHERE id = ?2", params![created_at, entry.id])?;
         }
@@ -217,30 +285,23 @@ pub fn import_vault_json(vault: State<VaultManager>, json: String) -> AnchorResu
         }
     }
     tx.commit().map_err(AnchorError::from)?;
-    Ok(preview)
+    Ok(ids)
 }
 
-/// Writes already-generated export text to a path the user picked via a
-/// native save dialog. Deliberately narrow: no generic filesystem plugin on
-/// the renderer side, only UTF-8 text below a size cap, never a path the
-/// user didn't pick themselves.
+/// Asks the user to pick an Anchor export and returns its text for the
+/// preview/confirm/import flow. `None` if cancelled.
 #[tauri::command]
-pub fn write_text_export(path: String, content: String) -> AnchorResult<()> {
-    if content.len() > 100_000_000 {
-        return Err(AnchorError::new(SafeErrorCode::Unexpected, "Export is too large to write."));
-    }
-    std::fs::write(&path, content).map_err(|_| AnchorError::new(SafeErrorCode::Unexpected, "Could not write the export file."))
-}
-
-/// Reads a file the user picked via a native open dialog, for the JSON
-/// import flow. Same narrow-command reasoning as `write_text_export`.
-#[tauri::command]
-pub fn read_text_import(path: String) -> AnchorResult<String> {
+pub async fn pick_import_file(app: AppHandle) -> AnchorResult<Option<String>> {
+    let Some(path) = native_pick(&app, PickKind::OpenFile, None, Some(("Anchor export", &["json"]))).await? else {
+        return Ok(None);
+    };
     let metadata = std::fs::metadata(&path).map_err(|_| AnchorError::new(SafeErrorCode::MalformedImport, "Could not read that file."))?;
     if metadata.len() > 100_000_000 {
         return Err(AnchorError::new(SafeErrorCode::MalformedImport, "That file is too large to import."));
     }
-    std::fs::read_to_string(&path).map_err(|_| AnchorError::new(SafeErrorCode::MalformedImport, "Could not read that file as text."))
+    std::fs::read_to_string(&path)
+        .map(Some)
+        .map_err(|_| AnchorError::new(SafeErrorCode::MalformedImport, "Could not read that file as text."))
 }
 
 // ---------- Markdown export ----------
@@ -260,14 +321,17 @@ fn safe_filename(title: Option<&str>, id: &str, created_at: &str) -> String {
     format!("{}-{}-{}.md", date_part, title_part, &id[..8.min(id.len())])
 }
 
-/// Writes one .md file per entry into `target_dir` (chosen via a native
-/// save dialog). Never writes into an existing Obsidian vault automatically;
-/// the user picks the destination.
+/// Writes one .md file per entry into a folder the user picks. Never
+/// writes into an existing Obsidian vault automatically; the user picks the
+/// destination. `None` if cancelled.
 #[tauri::command]
-pub fn export_markdown(vault: State<VaultManager>, target_dir: String) -> AnchorResult<usize> {
+pub async fn export_markdown(app: AppHandle, vault: State<'_, VaultManager>) -> AnchorResult<Option<usize>> {
+    let Some(dir) = native_pick(&app, PickKind::OpenFolder, None, None).await? else {
+        return Ok(None);
+    };
     let v = vault.current();
     let conn = v.pool.get()?;
-    let dir = std::path::Path::new(&target_dir);
+    let dir = dir.as_path();
     std::fs::create_dir_all(dir).map_err(|_| AnchorError::new(SafeErrorCode::Unexpected, "Could not create export directory."))?;
 
     let entries = repo::list_entries(&conn, None, 100000)?;
@@ -304,22 +368,32 @@ pub fn export_markdown(vault: State<VaultManager>, target_dir: String) -> Anchor
         std::fs::write(dir.join(filename), md).map_err(|_| AnchorError::new(SafeErrorCode::Unexpected, "Could not write a Markdown file."))?;
         count += 1;
     }
-    Ok(count)
+    Ok(Some(count))
 }
 
 // ---------- Backup / restore ----------
 
+/// Returns `false` if the user cancelled the save dialog.
 #[tauri::command]
-pub fn backup_vault(vault: State<VaultManager>, target_path: String) -> AnchorResult<()> {
+pub async fn backup_vault(app: AppHandle, vault: State<'_, VaultManager>) -> AnchorResult<bool> {
+    let Some(path) = native_pick(&app, PickKind::SaveFile, Some("anchor-backup.sqlite"), Some(("Anchor backup", &["sqlite"]))).await? else {
+        return Ok(false);
+    };
     let v = vault.current();
     let conn = v.pool.get()?;
-    backup::backup_to(&conn, std::path::Path::new(&target_path))
+    backup::backup_to(&conn, &path)?;
+    Ok(true)
 }
 
+/// Returns `false` if the user cancelled the file picker. The renderer asks
+/// for confirmation before calling this.
 #[tauri::command]
-pub fn restore_vault(app: AppHandle, vault: State<VaultManager>, source_path: String) -> AnchorResult<()> {
+pub async fn restore_vault(app: AppHandle, vault: State<'_, VaultManager>) -> AnchorResult<bool> {
+    let Some(source_path) = native_pick(&app, PickKind::OpenFile, None, Some(("Anchor backup", &["sqlite"]))).await? else {
+        return Ok(false);
+    };
     let v = vault.current();
-    backup::validate_restore_candidate(std::path::Path::new(&source_path))?;
+    backup::validate_restore_candidate(&source_path)?;
     // Safety net: back up current state before overwriting.
     let safety_dir = app_data_dir(&app)?.join("pre-restore-backups");
     let _ = std::fs::create_dir_all(&safety_dir);
@@ -328,13 +402,13 @@ pub fn restore_vault(app: AppHandle, vault: State<VaultManager>, source_path: St
         let _ = backup::backup_to(&conn, &safety_path);
     }
 
-    backup::restore_from(&v.path, std::path::Path::new(&source_path))?;
+    backup::restore_from(&v.path, &source_path)?;
     let mut new_state = open_vault(&v.path)?;
     new_state.mode = v.mode;
     bump_vault_generation(&new_state)?;
     let vm = vault.inner();
     vm.replace(new_state);
-    Ok(())
+    Ok(true)
 }
 
 // ---------- Erase vault ----------
@@ -407,13 +481,7 @@ pub fn seed_demo_vault(vault: State<VaultManager>) -> AnchorResult<usize> {
     }
     let file: DemoFixtureFile =
         serde_json::from_str(DEMO_FIXTURES).map_err(|_| AnchorError::new(SafeErrorCode::Unexpected, "Bundled demo fixtures are malformed."))?;
-    let json = serde_json::to_string(&VaultExport { schema_version: 1, exported_at: now_iso(), entries: file.entries })
-        .map_err(|_| AnchorError::new(SafeErrorCode::Unexpected, "Could not prepare demo fixtures."))?;
-    drop(conn);
-    let preview = preview_import(&json)?.1;
-    import_vault_json(vault, json)?;
-    Ok(preview.entry_count)
+    let mut conn = conn;
+    let ids = import_entries(&mut conn, VaultExport { schema_version: 1, exported_at: now_iso(), entries: file.entries })?;
+    Ok(ids.len())
 }
-
-#[allow(dead_code)]
-fn _unused_connection_type_hint(_c: &Connection) {}

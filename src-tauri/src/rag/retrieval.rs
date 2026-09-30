@@ -11,7 +11,7 @@ use rusqlite::{params, Connection, Row};
 
 const CANDIDATE_COUNT: usize = 12;
 const SELECTED_COUNT: usize = 6;
-const MIN_SIMILARITY: f32 = 0.35; // calibrated against evals/fixtures/eval_queries.json; see evals/README.md
+const MIN_SIMILARITY: f32 = 0.35; // starting value; tune with `cargo run --example retrieval_eval` (see evals/README.md)
 
 struct Candidate {
     id: String,
@@ -19,7 +19,9 @@ struct Candidate {
     source_kind: String,
     worry_id: Option<String>,
     content: String,
-    created_at: String,
+    /// When the user wrote the entry, not when the chunk was indexed: a
+    /// rebuild or model switch must not make old entries look recent.
+    entry_created_at: String,
     embedding: Vec<f32>,
 }
 
@@ -48,7 +50,7 @@ fn candidate_from_row(row: &Row) -> rusqlite::Result<Candidate> {
         source_kind: row.get("source_kind")?,
         worry_id: row.get("worry_id")?,
         content: row.get("content")?,
-        created_at: row.get("created_at")?,
+        entry_created_at: row.get("entry_created_at")?,
         embedding: decode_blob(&blob),
     })
 }
@@ -56,8 +58,8 @@ fn candidate_from_row(row: &Row) -> rusqlite::Result<Candidate> {
 /// Retrieve relevant chunks for `query_embedding`. Applies modest recency
 /// weighting on top of semantic similarity, deduplicates chunks from the
 /// same entry+source_kind, and expands any matched worry chunk with its
-/// full linked outcome history (never just the original
-/// fear; this is essential).
+/// most recent linked outcome (never just the original fear; this is
+/// essential).
 pub fn retrieve(
     conn: &Connection,
     query_embedding: &[f32],
@@ -66,7 +68,7 @@ pub fn retrieve(
     exclude_entry_id: Option<&str>,
 ) -> anyhow::Result<Vec<RetrievedSource>> {
     let mut stmt = conn.prepare(
-        "SELECT rc.* FROM retrieval_chunks rc
+        "SELECT rc.*, je.created_at AS entry_created_at FROM retrieval_chunks rc
          JOIN journal_entries je ON je.id = rc.entry_id
          WHERE rc.embedding_space_version = ?1
            AND rc.vault_generation = ?2
@@ -84,7 +86,7 @@ pub fn retrieve(
         .filter(|c| exclude_entry_id.map(|id| id != c.entry_id).unwrap_or(true))
         .map(|c| {
             let sim = cosine(query_embedding, &c.embedding);
-            let recency_bonus = recency_weight(&c.created_at, now);
+            let recency_bonus = recency_weight(&c.entry_created_at, now);
             (sim * 0.88 + recency_bonus * 0.12, c)
         })
         .filter(|(score, _)| *score >= MIN_SIMILARITY)
@@ -120,7 +122,7 @@ pub fn retrieve(
             entry_id: c.entry_id,
             source_kind: c.source_kind,
             content: c.content,
-            date: c.created_at,
+            date: c.entry_created_at,
             similarity: score,
             linked_outcome,
         });

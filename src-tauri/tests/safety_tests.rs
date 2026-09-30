@@ -52,3 +52,11 @@ fn figurative_kill_language_does_not_trigger_imminent() {
 fn direct_statement_triggers_imminent() {
     assert_eq!(classify("I want to kill myself tonight, I have a plan"), DistressLevel::Imminent);
 }
+
+#[test]
+fn elevated_note_includes_regional_resource_when_country_set() {
+    let note = anchor_lib::safety::elevated_support_note(Some("US"));
+    assert!(note.contains("988"));
+    let no_country = anchor_lib::safety::elevated_support_note(None);
+    assert!(no_country.contains("Settings"));
+}

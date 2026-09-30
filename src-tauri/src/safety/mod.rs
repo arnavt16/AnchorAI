@@ -120,3 +120,24 @@ pub fn imminent_danger_response(country: Option<&str>) -> String {
     }
     msg
 }
+
+/// Bundled check-in shown alongside a normal reflection when a message is
+/// rated `Elevated`. Unlike the imminent path, reflection still runs (these
+/// phrases are often not an emergency), but this text comes from here,
+/// not the model, so it is present even if generation fails or goes wrong.
+pub fn elevated_support_note(country: Option<&str>) -> String {
+    let mut msg = String::from(
+        "Some of what you wrote sounds really heavy. If you're thinking about hurting yourself, \
+         or you're not sure you're safe, please reach out to someone now: a person you trust, \
+         a crisis line, or your local emergency number.",
+    );
+    let resources = resources_for_country(country);
+    if resources.is_empty() {
+        msg.push_str(" You can set your country in Settings so Anchor can show a regional crisis line here.");
+    } else {
+        for r in resources {
+            msg.push_str(&format!("\n- {}: {} ({})", r.label, r.contact, r.source_url));
+        }
+    }
+    msg
+}

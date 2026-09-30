@@ -117,4 +117,17 @@ pub struct ValidatedReflection {
     /// The UI uses this to decide whether to show cited-source affordances,
     /// never to withhold an answer.
     pub citations_verified: bool,
+    /// Bundled (never model-written) check-in text for messages the safety
+    /// pre-filter rates `Elevated`. Shown alongside the normal reply.
+    #[serde(default)]
+    pub support_note: Option<String>,
+}
+
+/// One earlier turn of the current, in-memory Reflect conversation. The
+/// frontend sends these with each message; nothing here is persisted.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatTurn {
+    pub role: String,
+    pub content: String,
 }

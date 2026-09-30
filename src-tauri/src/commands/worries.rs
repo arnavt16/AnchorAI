@@ -86,7 +86,17 @@ pub fn update_outcome(
 pub fn delete_outcome(vault: State<VaultManager>, id: String) -> AnchorResult<()> {
     let v = vault.current();
     let conn = v.pool.get()?;
-    repo::delete_outcome(&conn, &id)
+    let entry_id = repo::get_outcome(&conn, &id)?
+        .and_then(|o| repo::get_worry(&conn, &o.worry_id).ok().flatten())
+        .map(|w| w.entry_id);
+    repo::delete_outcome(&conn, &id)?;
+    // The delete bumps the entry's aggregate_version and flips it to
+    // 'pending', so it needs a fresh job like every other edit — otherwise
+    // retrieval (which only reads 'ready' entries) drops it indefinitely.
+    if let Some(entry_id) = entry_id {
+        let _ = worker::enqueue_if_eligible(&conn, &entry_id);
+    }
+    Ok(())
 }
 
 #[tauri::command]

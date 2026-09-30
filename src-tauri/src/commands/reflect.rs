@@ -1,11 +1,10 @@
 use crate::db::VaultManager;
 use crate::error::{AnchorError, AnchorResult, SafeErrorCode};
 use crate::indexing::worker::IndexingControl;
-use crate::models::{JournalEntry, ValidatedReflection};
+use crate::models::{ChatTurn, JournalEntry, ValidatedReflection};
 use crate::ollama::OllamaClient;
 use crate::rag::{self, ReflectRequest};
 use rusqlite::params;
-use std::sync::atomic::Ordering;
 use tauri::State;
 
 #[derive(Debug, serde::Deserialize)]
@@ -15,12 +14,16 @@ pub struct ReflectInput {
     pub intention: Option<String>,
     pub use_memory: bool,
     pub exclude_entry_id: Option<String>,
+    /// Earlier turns of this session's conversation, oldest first. Trimmed
+    /// and role-checked in `rag::generation::trim_history`.
+    #[serde(default)]
+    pub history: Vec<ChatTurn>,
 }
 
-/// Runs one reflection turn. Indexing is paused for the duration so the
+/// Runs one reflection turn. Indexing is held off for the duration so the
 /// model gets full attention while the user is actively waiting. Chat
-/// history itself is never persisted here: the frontend keeps the
-/// conversation in memory only and this command is stateless per call.
+/// history is never persisted: the frontend keeps the conversation in
+/// memory and sends the recent turns with each call.
 #[tauri::command]
 pub async fn reflect(vault: State<'_, VaultManager>, control: State<'_, IndexingControl>, input: ReflectInput) -> AnchorResult<ValidatedReflection> {
     if input.message.trim().is_empty() {
@@ -30,10 +33,12 @@ pub async fn reflect(vault: State<'_, VaultManager>, control: State<'_, Indexing
         return Err(AnchorError::new(SafeErrorCode::InvalidInput, "Message is too long."));
     }
 
-    control.paused.store(true, Ordering::Relaxed);
-    let result = run_reflect(&vault, input).await;
-    control.paused.store(false, Ordering::Relaxed);
-    result
+    if input.history.len() > 200 {
+        return Err(AnchorError::new(SafeErrorCode::InvalidInput, "Conversation is too long."));
+    }
+
+    let _guard = control.begin_reflection();
+    run_reflect(&vault, input).await
 }
 
 async fn run_reflect(vault: &State<'_, VaultManager>, input: ReflectInput) -> AnchorResult<ValidatedReflection> {
@@ -48,6 +53,7 @@ async fn run_reflect(vault: &State<'_, VaultManager>, input: ReflectInput) -> An
             intention: input.intention.as_deref(),
             use_memory: input.use_memory,
             exclude_entry_id: input.exclude_entry_id.as_deref(),
+            history: &input.history,
         },
     )
     .await

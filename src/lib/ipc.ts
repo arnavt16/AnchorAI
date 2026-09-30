@@ -140,6 +140,15 @@ export interface ValidatedReflection {
    * fallback replies and the urgent-distress path (still a real answer,
    * just not schema-verified). */
   citationsVerified: boolean;
+  /** Bundled check-in text (not model-written) for messages the safety
+   * pre-filter rates as elevated distress. Shown alongside the reply. */
+  supportNote: string | null;
+}
+
+/** One earlier turn of the in-memory Reflect conversation. */
+export interface ChatTurn {
+  role: "user" | "assistant";
+  content: string;
 }
 
 export type VaultMode = "personal" | "demo";
@@ -208,7 +217,7 @@ export const systemApi = {
 // ---------- Reflection ----------
 
 export const reflectApi = {
-  reflect: (input: { message: string; intention?: string; useMemory: boolean; excludeEntryId?: string }) =>
+  reflect: (input: { message: string; intention?: string; useMemory: boolean; excludeEntryId?: string; history: ChatTurn[] }) =>
     call<ValidatedReflection>("reflect", { input }),
   saveAsEntry: (text: string, tags: string[]) => call<JournalEntry>("save_reflection_as_entry", { input: { text, tags } }),
 };
@@ -222,15 +231,17 @@ export interface ImportPreview {
   stepCount: number;
 }
 
+// File-touching commands open their own native dialog on the Rust side and
+// resolve to null/false when the user cancels. The renderer never passes a
+// filesystem path.
 export const dataApi = {
-  exportJson: () => call<string>("export_vault_json"),
-  writeTextExport: (path: string, content: string) => call<void>("write_text_export", { path, content }),
+  exportJsonToFile: () => call<string | null>("export_vault_json_file"),
+  pickImportFile: () => call<string | null>("pick_import_file"),
   previewImport: (json: string) => call<ImportPreview>("preview_vault_import", { json }),
   importJson: (json: string) => call<ImportPreview>("import_vault_json", { json }),
-  readTextImport: (path: string) => call<string>("read_text_import", { path }),
-  exportMarkdown: (targetDir: string) => call<number>("export_markdown", { targetDir }),
-  backup: (targetPath: string) => call<void>("backup_vault", { targetPath }),
-  restore: (sourcePath: string) => call<void>("restore_vault", { sourcePath }),
+  exportMarkdown: () => call<number | null>("export_markdown"),
+  backup: () => call<boolean>("backup_vault"),
+  restore: () => call<boolean>("restore_vault"),
   erase: () => call<void>("erase_vault"),
   getVaultMode: () => call<VaultMode>("get_vault_mode"),
   switchVaultMode: (mode: VaultMode) => call<VaultMode>("switch_vault_mode", { mode }),

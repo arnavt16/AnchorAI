@@ -152,12 +152,12 @@ pub async fn run_readiness_check_and_select(
 
 #[tauri::command]
 pub fn pause_indexing(control: State<IndexingControl>) {
-    control.paused.store(true, Ordering::Relaxed);
+    control.paused.store(true, Ordering::SeqCst);
 }
 
 #[tauri::command]
 pub fn resume_indexing(control: State<IndexingControl>) {
-    control.paused.store(false, Ordering::Relaxed);
+    control.paused.store(false, Ordering::SeqCst);
 }
 
 /// Manually re-enqueue every memory-eligible entry (e.g. after fixing a
