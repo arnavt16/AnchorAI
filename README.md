@@ -2,11 +2,8 @@
 
 [![CI](https://github.com/arnavt16/AnchorAI/actions/workflows/ci.yml/badge.svg)](https://github.com/arnavt16/AnchorAI/actions/workflows/ci.yml)
 
-Anchor is a local-first desktop journal. The feature I actually built this
-project around is **Worry Loop**: it connects a worry you're having right
-now to relevant past worries, the outcomes you recorded for them, and the
-things you said helped — retrieved and generated entirely on your own
-computer, no cloud involved.
+Anchor is a local-first desktop journal. 
+https://anchorai-web.vercel.app/
 
 I built Anchor as an applied LLM/RAG portfolio project. It's not a
 clinical product, isn't clinically validated, doesn't diagnose, and isn't
@@ -24,17 +21,6 @@ below says exactly what's implemented, tested, and still missing.
      ![Anchor's Reflect screen, showing a memory-grounded response with cited sources](./docs/screenshots/reflect.png)
 -->
 
-## Why I built this
-
-I wanted a portfolio project that was more than a wrapper around an API
-call — something with a real local RAG pipeline, a real desktop app
-shell, and a feature that couldn't just be "chatbot with a system
-prompt." Worry Loop is that feature: it's not enough to retrieve similar
-journal entries, you also have to follow the link from a worry to its
-recorded outcome, and you have to not paper over unfavorable outcomes
-just because that would make for a nicer-sounding response. Getting that
-right (and testing that it stays right) ended up being most of the
-actual engineering work.
 
 ## What's here right now
 
@@ -42,9 +28,7 @@ A working desktop shell, full journal + Worry Loop CRUD, a real local
 embedding/RAG pipeline against Ollama, multi-turn reflection with source
 citations, a one-command retrieval eval harness, CI on Linux and macOS,
 and the safety/privacy plumbing (consent, memory exclusion, two-tier
-distress routing, session-only chat, Rust-owned file dialogs). Packaging a signed
-installer, a proper usability study, and a few convenience features are
-**not** done yet — see [Project status](#project-status).
+distress routing, session-only chat, Rust-owned file dialogs). 
 
 ## For end users: installing and running Anchor
 
@@ -72,9 +56,7 @@ Anchor as a plain journal with no Ollama at all.
 
 ### 2. Get Anchor running
 
-I originally developed and smoke-tested this on Linux. It now builds and
-passes its full test suite on macOS 15 (Apple Silicon), and CI runs the
-tests on both Ubuntu and macOS. There's no signed installer yet (see
+There's no signed installer yet (see
 [Project status](#project-status)). To build it yourself on a Mac:
 
 1. Install [Node.js](https://nodejs.org) (v20+) and [Rust](https://www.rust-lang.org/tools/install) (`curl https://sh.rustup.rs -sSf | sh`).
@@ -180,43 +162,7 @@ tests/unit/            Vitest frontend tests
   open their native dialogs from Rust, and the capability file no longer
   grants the renderer dialog open/save permissions at all.
 
-## Evaluating retrieval quality
 
-`evals/fixtures/demo_entries.json` (20 fictional entries) and
-`evals/fixtures/eval_queries.json` (8 labeled queries) drive an automated
-retrieval eval:
-
-```
-ollama pull nomic-embed-text
-cd src-tauri && cargo run --example retrieval_eval -- --embed-model nomic-embed-text
-```
-
-It seeds the fixtures into a throwaway vault, indexes them through the
-app's real indexing code, and scores each query two ways: a naive top-k
-baseline (raw cosine over everything, including the memory-disabled
-entry) versus Anchor's retrieval as shipped (eligibility + version
-filters, threshold, recency, linked-outcome expansion). It checks
-recall, linked-outcome coverage, the no-match case, and that private
-entries never leak, then writes a Markdown report to `evals/results/`.
-The harness has been verified end to end against a stub server; I
-haven't published a live-model run yet. Scoring generated responses
-(not just retrieval) still needs a human read of transcripts; see
-`evals/README.md`.
-
-## Project status
-
-Done: journal entries with search and tagging, full Worry Loop tracking
-(worries, recorded outcomes, small steps), a local embedding/RAG pipeline
-against Ollama with cited, multi-turn reflection and a natural-language
-fallback when structured output isn't available, the two-tier distress
-pre-filter, consent/memory controls, backup/export, vault erasure, an
-automated retrieval eval harness, and CI. 34 passing Rust tests and 24
-passing frontend tests (`cargo test` / `npm test`).
-
-Not done yet: a signed/notarized macOS installer, database-level
-encryption at rest, in-app model download, a proper usability study, and
-a published live-model eval report (run the harness above to produce
-one).
 
 ### Recent changes
 
